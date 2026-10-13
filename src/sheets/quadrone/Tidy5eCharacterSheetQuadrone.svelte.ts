@@ -1,0 +1,1561 @@
+import { CONSTANTS } from 'src/constants';
+import type {
+  ApplicationConfiguration,
+  ApplicationRenderOptions,
+} from 'src/types/application.types';
+import CharacterSheet from './actor/CharacterSheet.svelte';
+import { mount } from 'svelte';
+import type {
+  ActiveEffect5e,
+  Actor5e,
+  ActorInventoryTypes,
+  ActorSheetQuadroneContext,
+  CharacterItemQuadroneContext,
+  CharacterItemPartitions,
+  CharacterSheetQuadroneContext,
+  CharacterSpeedSenseContext,
+  ActorSpeedSenseEntryContext,
+  FavoriteContextEntry,
+  InspirationSource,
+  FeatureSection,
+  TidyItemSectionBase,
+  SheetTabSection,
+  ActionItemInclusionMode,
+} from 'src/types/types';
+import type { CurrencyContext, Item5e } from 'src/types/item.types';
+import { initTidy5eContextMenu } from 'src/context-menu/tidy5e-context-menu';
+import { CharacterSheetQuadroneRuntime } from 'src/runtime/actor/CharacterSheetQuadroneRuntime.svelte';
+import { ConditionsAndEffects } from 'src/features/conditions-and-effects/ConditionsAndEffects';
+import * as Bastion from 'src/features/facility/Bastion';
+import { ThemeQuadrone } from 'src/theme/theme-quadrone.svelte';
+import { getTidy5eActorSheetQuadroneBase } from './Tidy5eActorSheetQuadroneBase.svelte';
+import { TidyFlags } from 'src/foundry/TidyFlags';
+import type { Activity5e, CharacterFavorite } from 'src/foundry/dnd5e.types';
+import { FoundryAdapter } from 'src/foundry/foundry-adapter';
+import { isNil } from 'src/utils/data';
+import type { TidyDocumentSheetRenderOptions } from 'src/mixins/TidyDocumentSheetMixin.svelte';
+import { CharacterSheetSections } from 'src/features/sections/CharacterSheetSections';
+import { SheetSections } from 'src/features/sections/SheetSections';
+import { Inventory } from 'src/features/sections/Inventory';
+import { ItemContext } from 'src/features/item/ItemContext';
+import SectionActions from 'src/features/sections/SectionActions';
+import { UserSheetPreferencesService } from 'src/features/user-preferences/SheetPreferencesService';
+import type { DropEffectValue } from 'src/mixins/DragAndDropBaseMixin';
+import { SettingsProvider } from 'src/settings/settings.svelte';
+import { error } from 'src/utils/logging';
+import { CharacterSheetQuadroneSidebarRuntime } from 'src/runtime/actor/CharacterSheetQuadroneSidebarRuntime.svelte';
+import { TidySheetSettingsTabIds } from 'src/applications/settings/sheet/TidySheetSettingsQuadroneApplication.svelte';
+import type { RenderedSheetPart } from '../CustomContentRendererV2';
+import {
+  getCharacterSheetTabActionSectionsQuadrone,
+  isItemInActionList,
+} from 'src/features/actions/actions.svelte';
+import { TidyHooks } from 'src/foundry/TidyHooks';
+import { arrayTransfer } from 'src/utils/array';
+import { InventoryRowActionRuntime } from 'src/runtime/table-row-actions/InventoryRowActionRuntime.svelte';
+import { FeatureRowActionRuntime } from 'src/runtime/table-row-actions/FeatureRowActionRuntime.svelte';
+import { SpellRowActionRuntime } from 'src/runtime/table-row-actions/SpellRowActionRuntime.svelte';
+import { FeatureColumnRuntime } from 'src/runtime/table-columns/FeatureColumnRuntime';
+
+export class Tidy5eCharacterSheetQuadrone extends getTidy5eActorSheetQuadroneBase<CharacterSheetQuadroneContext>(
+  CONSTANTS.SHEET_TYPE_CHARACTER,
+) {
+  currentTabId: string;
+  currentSidebarTabId: string;
+  aggregatePinTab = {
+    tabId: CONSTANTS.TAB_ACTOR_ACTIONS,
+    tabName: game.release.generation < 14 ? 'Sheet' : 'DOCUMENT.Sheet',
+  };
+
+  constructor(options?: Partial<ApplicationConfiguration> | undefined) {
+    super(options);
+
+    // Default to Character tab if no class, otherwise first tab
+    const hasClass = this.actor.itemTypes.class?.length > 0;
+    this.currentTabId = hasClass
+      ? CONSTANTS.TAB_ACTOR_ACTIONS
+      : CONSTANTS.TAB_CHARACTER_ATTRIBUTES;
+    this.currentSidebarTabId = CONSTANTS.TAB_CHARACTER_SIDEBAR_FAVORITES;
+  }
+
+  static DEFAULT_OPTIONS: Partial<
+    ApplicationConfiguration & { dragDrop: Partial<DragDropConfiguration>[] }
+  > = {
+    position: {
+      width: 740,
+      height: 810,
+    },
+    actions: {
+      openSidebarTabConfiguration:
+        Tidy5eCharacterSheetQuadrone.#openSidebarTabConfiguration,
+    },
+  };
+
+  _createComponent(node: HTMLElement): Record<string, any> {
+    if (this.actor.limited) {
+      return this._createLimitedViewComponent(node);
+    }
+
+    const component = mount(CharacterSheet, {
+      target: node,
+      context: new Map<any, any>(this._getActorSvelteContext()),
+    });
+
+    initTidy5eContextMenu(this, this.element, CONSTANTS.SHEET_LAYOUT_QUADRONE);
+
+    return component;
+  }
+
+  _showDeathSaves: boolean = false;
+
+  async _prepareContext(
+    options: ApplicationRenderOptions,
+  ): Promise<CharacterSheetQuadroneContext> {
+    if (options?.tidy?.soft && this._context?.data) {
+      return this._context.data;
+    }
+
+    this._concentration = this.actor.concentration;
+
+    const actorContext = (await super._prepareContext(
+      options,
+    )) as ActorSheetQuadroneContext;
+
+    // Effects & Conditions
+    let baseEffects =
+      dnd5e.applications.components.EffectsElement.prepareCategories(
+        this.actor.allApplicableEffects(),
+      );
+    let { conditions, effects: enhancedEffectSections } =
+      await ConditionsAndEffects.getConditionsAndEffectsForActorQuadrone(
+        actorContext,
+        this.object,
+        baseEffects,
+      );
+
+    const currencies: CurrencyContext[] = [];
+
+    const preferences = UserSheetPreferencesService.getByType(this.actor.type);
+
+    Object.keys(CONFIG.DND5E.currencies).forEach((key) =>
+      currencies.push({
+        key: key,
+        value: this.actor.system.currency[key] as number,
+        abbr:
+          CONFIG.DND5E.currencies[key as keyof typeof CONFIG.DND5E.currencies]
+            ?.abbreviation ?? key,
+      }),
+    );
+
+    const enrichmentArgs = {
+      secrets: this.actor.isOwner,
+      rollData: actorContext.rollData,
+      relativeTo: this.actor,
+    };
+
+    let inspirationSource: InspirationSource | undefined =
+      await CONFIG.TIDY5E.utils.actorInspiration.tryGetInspirationSource(
+        this.actor,
+      );
+
+    let background = this.actor.system.details.background;
+    let species = this.actor.system.details.race;
+
+    const context: CharacterSheetQuadroneContext = {
+      actions: [],
+      abilities: this._prepareAbilities(actorContext),
+      background: background
+        ? {
+            id: background.id,
+            img: background.img,
+            name: background.name,
+          }
+        : undefined,
+      conditions: conditions,
+      creatureType: this._getCreatureType(),
+      currencies,
+      defenders: [],
+      // TODO: Consider deferring enrichment to tab rendering, so tab selection can preclude it.
+      effects: enhancedEffectSections,
+      enriched: {
+        appearance: await foundry.applications.ux.TextEditor.enrichHTML(
+          this.actor.system.details.appearance,
+          enrichmentArgs,
+        ),
+        bastion: await foundry.applications.ux.TextEditor.enrichHTML(
+          this.actor.system.bastion.description,
+          enrichmentArgs,
+        ),
+        bond: await foundry.applications.ux.TextEditor.enrichHTML(
+          this.actor.system.details.bond,
+          enrichmentArgs,
+        ),
+        flaw: await foundry.applications.ux.TextEditor.enrichHTML(
+          this.actor.system.details.flaw,
+          enrichmentArgs,
+        ),
+        ideal: await foundry.applications.ux.TextEditor.enrichHTML(
+          this.actor.system.details.ideal,
+          enrichmentArgs,
+        ),
+        trait: await foundry.applications.ux.TextEditor.enrichHTML(
+          this.actor.system.details.trait,
+          enrichmentArgs,
+        ),
+        biography: await foundry.applications.ux.TextEditor.enrichHTML(
+          this.actor.system.details.biography.value,
+          enrichmentArgs,
+        ),
+      },
+      epicBoonsEarned: undefined,
+      facilities: {
+        basic: { builtFacilities: [], available: [], count: 0, max: 0 },
+        special: { builtFacilities: [], available: [], count: 0, max: 0 },
+      },
+      favorites: await this._prepareFavorites(),
+      features: [],
+      initialSidebarTabId: this.currentSidebarTabId,
+      inspirationSource,
+      inventory: [],
+      senses: this._getCharacterSenses(),
+      sidebarTabs: [],
+      size: {
+        key: this.actor.system.traits.size,
+        label:
+          CONFIG.DND5E.actorSizes[this.actor.system.traits.size]?.label ??
+          this.actor.system.traits.size,
+        abbr:
+          CONFIG.DND5E.actorSizes[this.actor.system.traits.size]
+            ?.abbreviation ?? '—',
+        mod: this.actor.system.attributes.encumbrance.mod,
+      },
+      skills: [],
+      sheetTabSections: [],
+      showDeathSaves: this._showDeathSaves,
+      species: species
+        ? {
+            id: species.id,
+            img: species.img,
+            name: species.name,
+          }
+        : undefined,
+      specialTraits: this._getSpecialTraits(),
+      speeds: this._getCharacterMovementSpeeds(),
+      spellbook: [],
+      spellcasting: this._prepareSpellcastingClassContext(),
+      spellComponentLabels: FoundryAdapter.getSpellComponentLabels(),
+      spellSlotTrackerMode:
+        preferences.spellSlotTrackerMode ??
+        CONSTANTS.SPELL_SLOT_TRACKER_MODE_VALUE_MAX,
+      tools: [],
+      traits: this._prepareTraits(),
+      type: CONSTANTS.SHEET_TYPE_CHARACTER,
+      ...this._getClassesAndOrphanedSubclasses(),
+      ...actorContext,
+    };
+
+    if (context.system.details.xp.boonsEarned !== undefined) {
+      const pluralRules = new Intl.PluralRules(game.i18n.lang);
+
+      context.epicBoonsEarned = FoundryAdapter.localize(
+        `DND5E.ExperiencePoints.Boons.${pluralRules.select(
+          this.actor.system.details.xp.boonsEarned ?? 0,
+        )}`,
+        {
+          number: dnd5e.utils.formatNumber(
+            this.actor.system.details.xp.boonsEarned ?? 0,
+            { signDisplay: 'always' },
+          ),
+        },
+      );
+    }
+
+    const tabs = await CharacterSheetQuadroneRuntime.getTabs(context);
+
+    const usesSheetTab = tabs.some((t) => t.id === CONSTANTS.TAB_ACTOR_ACTIONS);
+
+    // Prepare owned items
+    this._prepareItems(context, usesSheetTab);
+
+    await this._prepareFacilities(context);
+
+    context.skills = this._getSkillsToolsContext(context, 'skills');
+    context.tools = this._getSkillsToolsContext(context, 'tools');
+
+    if (usesSheetTab) {
+      // TODO: create single, unified approach which takes eligible items, effects, activities,
+      // skills/tools, and spell slots and churns out sections and any side-effecting context changes
+      // (like pinning skills/tools/slots(?) when in Origin mode).
+
+      this.prepareSheetTabSections(context);
+    }
+
+    context.customContent =
+      await CharacterSheetQuadroneRuntime.getContent(context);
+
+    context.sidebarTabs =
+      await CharacterSheetQuadroneSidebarRuntime.getTabs(context);
+
+    context.tabs = tabs;
+
+    TidyHooks.tidy5eSheetsPrepareSheetContext(this.document, this, context);
+
+    return context;
+  }
+
+  prepareSheetTabSections(context: CharacterSheetQuadroneContext) {
+    const sheetTabPreferences = UserSheetPreferencesService.getByType(
+      this.actor.type,
+    )?.tabs?.[CONSTANTS.TAB_ACTOR_ACTIONS];
+
+    const sortMode = sheetTabPreferences?.sort ?? 'm';
+
+    const sheetTabSectionMode =
+      SheetSections.getSheetTabSectionOrganizationForDocument(this.document);
+
+    if (sheetTabSectionMode === CONSTANTS.SECTION_ORGANIZATION_ORIGIN) {
+      const sheetTabSections = this.createSheetTabOriginSections(context);
+      context.sheetTabSections = SheetSections.configureActionsQuadrone(
+        sheetTabSections,
+        CONSTANTS.TAB_ACTOR_ACTIONS,
+        UserSheetPreferencesService.getByType(this.actor.type),
+        TidyFlags.sectionConfig.get(context.actor)?.[
+          CONSTANTS.TAB_ACTOR_ACTIONS
+        ],
+      );
+    } else {
+      const actionSections = getCharacterSheetTabActionSectionsQuadrone(
+        this.actor,
+        context,
+      );
+
+      actionSections.forEach((section) => {
+        section.type = CONSTANTS.SECTION_TYPE_FEATURE;
+        section.sectionActions = SectionActions.getSheetTabHeaderActions(
+          this.actor,
+          this.actor.isOwner,
+          context.unlocked,
+          section,
+        );
+      });
+
+      context.sheetTabSections = SheetSections.configureActionsQuadrone(
+        actionSections,
+        CONSTANTS.TAB_ACTOR_ACTIONS,
+        UserSheetPreferencesService.getByType(this.actor.type),
+        TidyFlags.sectionConfig.get(context.actor)?.[
+          CONSTANTS.TAB_ACTOR_ACTIONS
+        ],
+      );
+    }
+  }
+
+  getSheetTabSectionOrganization(): 'action' | 'origin' {
+    return SheetSections.getSheetTabSectionOrganizationForDocument(
+      this.document,
+    );
+  }
+
+  createSheetTabOriginSections(context: CharacterSheetQuadroneContext) {
+    const inventoryTypes = Inventory.getInventoryTypes();
+    const inventory: ActorInventoryTypes =
+      Inventory.getDefaultInventorySections(this.document, {
+        editable: context.editable,
+        owner: context.owner,
+        unlocked: context.unlocked,
+      });
+
+    // Get eligible items (note: in Origin Sections, we do not dump out their containers into the top-level table; nesting is supported).
+    const partitions = (this.actor.items as any[])
+      .filter(
+        (item) =>
+          context.itemContext[item.id]?.includeInCharacterSheetTab === true,
+      )
+      .reduce(
+        (partitions, item) => {
+          CharacterSheetSections.partitionItem(item, partitions, inventory);
+
+          return partitions;
+        },
+        {
+          items: [] as Item5e[],
+          spells: [] as Item5e[],
+          facilities: [] as Item5e[],
+          feats: [] as Item5e[],
+          species: [] as Item5e[],
+          backgrounds: [] as Item5e[],
+          classes: [] as Item5e[],
+          subclasses: [] as Item5e[],
+        },
+      );
+
+    // Partition into origin sections
+    //   -> allow mixed-type items wherever custom sections are supported, and use the fallback columns for the page.
+    // Inventory
+    for (let item of partitions.items) {
+      Inventory.applyInventoryItemToSection({
+        sheetDocument: this.actor,
+        columnOptions: {
+          editable: context.editable,
+          owner: context.owner,
+          unlocked: context.unlocked,
+        },
+        tabId: CONSTANTS.TAB_ACTOR_INVENTORY,
+        inventory: inventory,
+        item: item,
+        defaultInventoryTypes: inventoryTypes,
+        customSectionOptions: {
+          canCreate: true,
+        },
+      });
+    }
+
+    // Spellbook
+    const spellbook = SheetSections.prepareTidySpellbook(
+      context,
+      CONSTANTS.TAB_ACTOR_SPELLBOOK,
+      partitions.spells,
+      {
+        canCreate: true,
+      },
+    );
+
+    // Features
+    const features: FeatureSection[] =
+      CharacterSheetSections.buildQuadroneFeatureSections(
+        context,
+        CONSTANTS.TAB_CHARACTER_FEATURES,
+        partitions.feats,
+        {
+          canCreate: true,
+        },
+      );
+
+    const applyStandardItemHeaderActions = (section: TidyItemSectionBase) => {
+      section.sectionActions = SectionActions.getStandardItemHeaderActions(
+        this.actor,
+        this.actor.isOwner,
+        context.unlocked,
+        section,
+      );
+    };
+
+    const featureSections = Object.values(features);
+    featureSections.forEach(applyStandardItemHeaderActions);
+
+    const inventorySections = Object.values(inventory);
+    inventorySections.forEach(applyStandardItemHeaderActions);
+
+    const spellbookSections = Object.values(spellbook);
+    spellbookSections.forEach((section) => {
+      section.sectionActions = SectionActions.getSpellbookItemHeaderActions(
+        this.actor,
+        this.actor.isOwner,
+        context.unlocked,
+        section,
+      );
+    });
+
+    let sheetTabSections: SheetTabSection[] = [
+      ...inventorySections,
+      ...spellbookSections,
+      ...featureSections,
+    ];
+
+    function createGenericSheetTabSection(
+      sheet: Tidy5eCharacterSheetQuadrone,
+      key: string,
+      items: Item5e[],
+    ): FeatureSection {
+      return {
+        type: CONSTANTS.SECTION_TYPE_FEATURE,
+        dataset: [],
+        items: items,
+        key: key,
+        label: FoundryAdapter.localize(key),
+        custom: {
+          creationItemTypes: [],
+          section: key,
+        },
+        isExternal: false,
+        show: true,
+        canCreate: false,
+        sectionActions: [],
+        columns: FeatureColumnRuntime.getColumnSpecifications({
+          owner: context.owner,
+          sheetDocument: context.document,
+          unlocked: context.unlocked,
+          tabId: CONSTANTS.TAB_ACTOR_ACTIONS,
+          editable: context.editable,
+          sectionKey: key,
+        }),
+      };
+    }
+
+    // Track which sections exist
+    let sectionsMap: Record<string, SheetTabSection> = {};
+
+    // Consolidate shared sections into generic feature sections
+    for (let section of sheetTabSections) {
+      const mappedSection = sectionsMap[section.key];
+
+      // Apply new section to map
+      if (!mappedSection) {
+        sectionsMap[section.key] = section;
+        continue;
+      }
+
+      const incomingItems = section.items;
+
+      // Shared section detected; non-feature shared sections are overwritten
+      // to be feature sections and now contain their items and incoming items
+      if (mappedSection.type !== CONSTANTS.SECTION_TYPE_FEATURE) {
+        const mappedItems = mappedSection.items;
+
+        sectionsMap[section.key] = createGenericSheetTabSection(
+          this,
+          section.key,
+          [...incomingItems, ...mappedItems],
+        );
+
+        continue;
+      }
+
+      // Existing shared feature section gets its feature items.
+      mappedSection.items.push(...incomingItems);
+    }
+
+    sheetTabSections = Object.values(sectionsMap);
+
+    sheetTabSections.forEach(
+      (section) =>
+        (section.sectionActions = SectionActions.getSheetTabHeaderActions(
+          this.document,
+          context.owner,
+          context.unlocked,
+          section,
+        )),
+    );
+
+    return sheetTabSections;
+  }
+
+  shouldIncludeItemInSheetTab(
+    item: Item5e,
+    inclusionMode: ActionItemInclusionMode,
+    sheetTabOrganization:
+      | typeof CONSTANTS.SECTION_ORGANIZATION_ACTION
+      | typeof CONSTANTS.SECTION_ORGANIZATION_ORIGIN,
+  ) {
+    if (!item.actor?.system.isCharacter) {
+      return false;
+    }
+
+    return sheetTabOrganization == 'origin'
+      ? (!item.actor.items.has(item.system.container) &&
+          isItemInActionList(item, inclusionMode)) ||
+          TidyFlags.actionFilterOverride.get(item) === true
+      : isItemInActionList(item, inclusionMode);
+  }
+
+  /**
+   * Prepare favorites for display.
+   */
+  async _prepareFavorites() {
+    let entries: FavoriteContextEntry[] = [];
+
+    let favorites = this.actor.system.favorites.sort(
+      (a: CharacterFavorite, b: CharacterFavorite) => a.sort - b.sort,
+    ) as CharacterFavorite[];
+
+    for (let { id, type } of favorites) {
+      const favorite = await fromUuid(id, { relative: this.actor });
+      if (
+        !favorite &&
+        (type === 'item' || type === 'effect' || type === 'activity')
+      ) {
+        continue;
+      }
+
+      if (type === 'item') {
+        // Only include a supposed "item" type if the actor owns it
+        this.actor.items.get(favorite.id) &&
+          entries.push({
+            id,
+            type: 'item',
+            item: favorite,
+            capacity:
+              favorite.type === CONSTANTS.SHEET_TYPE_CONTAINER
+                ? await favorite.system.computeCapacity()
+                : null,
+          });
+        continue;
+      } else if (type === 'effect') {
+        // Only include a supposed "effect" type if its document name matches
+        // TODO: Find a performant way to tell if this actor should be able to see this effect
+        favorite.documentName === CONSTANTS.DOCUMENT_NAME_ACTIVE_EFFECT &&
+          entries.push({
+            id,
+            type: 'effect',
+            effect: favorite,
+          });
+        continue;
+      } else if (type === 'activity') {
+        // Only include a supposed "activity" type the actor owns it
+        this.actor.items.get(favorite.item.id) &&
+          entries.push({
+            id,
+            type: 'activity',
+            activity: favorite,
+          });
+        continue;
+      } else if (type === 'slots') {
+        const {
+          value,
+          max,
+          level,
+          type: method,
+        } = this.actor.system.spells[id] ?? {};
+        const uses = { value, max, field: `system.spells.${id}.value` };
+
+        const model = CONFIG.DND5E.spellcasting[method];
+
+        const plurals = new Intl.PluralRules(game.i18n.lang, {
+          type: 'ordinal',
+        });
+
+        const hasNoModelOrIsSingleLevel = !model || model.isSingleLevel;
+
+        let name = hasNoModelOrIsSingleLevel
+          ? game.i18n.localize(`DND5E.SpellSlots${id.capitalize()}`)
+          : game.i18n.format(`DND5E.SpellSlotsN.${plurals.select(level)}`, {
+              n: level,
+            });
+
+        let img = hasNoModelOrIsSingleLevel
+          ? model?.img || CONFIG.DND5E.spellcasting.pact.img
+          : model.img.replace('{id}', id);
+
+        entries.push({
+          type: 'slots',
+          id,
+          uses,
+          level,
+          name,
+          img,
+        });
+      } else if (['skill', 'tool'].includes(type)) {
+        const data = this.actor.system[`${type}s`]?.[id];
+
+        if (!data) {
+          continue;
+        }
+
+        let img;
+        let name;
+        let reference;
+
+        if (type === 'tool') {
+          if (SettingsProvider.settings.referenceTooltipTool.get()) {
+            reference = dnd5e.documents.Trait.getBaseItemUUID(
+              CONFIG.DND5E.tools[id]?.id ?? '',
+            );
+          }
+
+          ({ img, name: name } = dnd5e.documents.Trait.getBaseItem(reference, {
+            indexOnly: true,
+          }));
+        } else if (type === 'skill') {
+          if (SettingsProvider.settings.referenceTooltipSkill.get()) {
+            reference = CONFIG.DND5E.skills[id]?.reference;
+          }
+
+          ({ icon: img, label: name } = CONFIG.DND5E.skills[id]);
+        }
+
+        entries.push({
+          type,
+          id,
+          key: id,
+          img: img,
+          name,
+          reference,
+        });
+      }
+    }
+
+    return entries;
+  }
+
+  _prepareItems(context: CharacterSheetQuadroneContext, usesSheetTab: boolean) {
+    const eligibleItems = Array.from(this.actor.items).filter(
+      (item: Item5e) => {
+        // Suppress riders for disabled enchantments
+        return item.dependentOrigin?.active !== false;
+      },
+    );
+
+    // Categorize items as inventory, spellbook, features, and classes
+    const inventory: ActorInventoryTypes =
+      Inventory.getDefaultInventorySections(this.document, {
+        editable: context.editable,
+        owner: context.owner,
+        unlocked: context.unlocked,
+      });
+
+    const inclusionMode = this.getSheetTabInclusionMode();
+    const sheetTabOrganization = this.getSheetTabSectionOrganization();
+
+    // Partition items by category
+    let { backgrounds, classes, feats, items, species, spells, subclasses } =
+      eligibleItems.reduce(
+        (obj: CharacterItemPartitions, item: Item5e) => {
+          const { quantity } = item.system;
+
+          // Item details
+          const ctx: CharacterItemQuadroneContext = (context.itemContext[
+            item.id
+          ] ??= {});
+
+          const unidentified = item.system.identified === false;
+
+          // Unidentified items
+          ctx.concealDetails = !game.user.isGM && unidentified;
+
+          ctx.isStack = Number.isNumeric(quantity) && quantity !== 1;
+          ctx.attunement =
+            FoundryAdapter.getAttunementContext(item) && !unidentified
+              ? FoundryAdapter.getAttunementContext(item)
+              : undefined;
+
+          // Item usage
+          ctx.hasUses = item.hasLimitedUses && !unidentified;
+          ctx.hasRecharge = item.hasRecharge && !unidentified;
+
+          // Item grouping
+          const originId = FoundryAdapter.getAdvancementOriginId(item);
+          const originItem = this.actor.items.get(originId);
+          switch (originItem?.type) {
+            case CONSTANTS.ITEM_TYPE_RACE:
+              ctx.group = 'species';
+              break;
+            case CONSTANTS.ITEM_TYPE_BACKGROUND:
+              ctx.group = CONSTANTS.ITEM_TYPE_BACKGROUND;
+              break;
+            case CONSTANTS.ITEM_TYPE_CLASS:
+              ctx.group = originItem.identifier;
+              break;
+            case CONSTANTS.ITEM_TYPE_SUBCLASS:
+              ctx.group = originItem.class?.identifier ?? 'other';
+              break;
+            default:
+              ctx.group = 'other';
+          }
+
+          ctx.includeInCharacterSheetTab = this.shouldIncludeItemInSheetTab(
+            item,
+            inclusionMode,
+            sheetTabOrganization,
+          );
+
+          ctx.containerName = this.actor.items.get(item.system.container)?.name;
+
+          // Individual item preparation
+          this._prepareItem(item, ctx);
+
+          const isWithinContainer = this.actor.items.has(item.system.container);
+
+          // Classify items into types
+          if (!isWithinContainer) {
+            CharacterSheetSections.partitionItem(item, obj, inventory);
+          } else {
+            // TODO: Find a cleaner way to handle all tabled documents' row actions.
+            // Contained items get row actions like any other item
+            ctx.rowActions = InventoryRowActionRuntime.getRowActions({
+              app: context.sheet,
+              data: {
+                editable: context.editable,
+                owner: context.owner,
+                unlocked: context.unlocked,
+                usesSheetTab,
+              },
+              rowDocument: item,
+              sheetDocument: context.document,
+            });
+          }
+
+          return obj;
+        },
+        {
+          items: [] as Item5e[],
+          spells: [] as Item5e[],
+          facilities: [] as Item5e[],
+          feats: [] as Item5e[],
+          species: [] as Item5e[],
+          backgrounds: [] as Item5e[],
+          classes: [] as Item5e[],
+          subclasses: [] as Item5e[],
+        },
+      );
+
+    const inventoryTypes = Inventory.getInventoryTypes();
+    // Organize items
+    // Section the items by type
+
+    for (const item of items) {
+      const ctx = (context.itemContext[item.id] ??= {});
+
+      ctx.rowActions = InventoryRowActionRuntime.getRowActions({
+        app: context.sheet,
+        data: {
+          editable: context.editable,
+          owner: context.owner,
+          unlocked: context.unlocked,
+          usesSheetTab,
+        },
+        rowDocument: item,
+        sheetDocument: context.document,
+      });
+
+      Inventory.applyInventoryItemToSection({
+        sheetDocument: this.actor,
+        tabId: CONSTANTS.TAB_ACTOR_INVENTORY,
+        columnOptions: {
+          editable: context.editable,
+          owner: context.owner,
+          unlocked: context.unlocked,
+        },
+        inventory: inventory,
+        item: item,
+        defaultInventoryTypes: inventoryTypes,
+        customSectionOptions: {
+          canCreate: true,
+        },
+      });
+    }
+
+    SheetSections.getFilteredGlobalSectionsToShowWhenEmpty(
+      context.actor,
+      CONSTANTS.TAB_ACTOR_INVENTORY,
+    ).forEach((s) => {
+      inventory[s] ??= Inventory.createInventorySection(
+        context,
+        {
+          editable: context.editable,
+          owner: context.owner,
+          unlocked: context.unlocked,
+        },
+        CONSTANTS.TAB_ACTOR_INVENTORY,
+        s,
+        inventoryTypes,
+        {
+          canCreate: true,
+        },
+      );
+    });
+
+    // Section spells
+    // TODO: Avoid having to loop over items again.
+    for (const item of spells) {
+      const ctx = (context.itemContext[item.id] ??= {});
+      ctx.rowActions = SpellRowActionRuntime.getRowActions({
+        app: context.sheet,
+        data: {
+          editable: context.editable,
+          owner: context.owner,
+          unlocked: context.unlocked,
+          usesSheetTab,
+        },
+        rowDocument: item,
+        sheetDocument: context.document,
+      });
+    }
+
+    const spellbook = SheetSections.prepareTidySpellbook(
+      context,
+      CONSTANTS.TAB_ACTOR_SPELLBOOK,
+      spells,
+      {
+        canCreate: true,
+      },
+    );
+
+    // Process Special Feature Item Context
+    classes = SheetSections.prepareClassItems(
+      context,
+      classes,
+      subclasses,
+      this.actor,
+    );
+
+    // Put unmatched subclasses into features so they don't disappear
+    for (const subclass of subclasses) {
+      feats.push(subclass);
+      const message = game.i18n.format('DND5E.SubclassMismatchWarn', {
+        name: subclass.name,
+        class: subclass.system.classIdentifier,
+      });
+      context.warnings.push({ message, type: 'warning' });
+    }
+
+    // Section Features
+    // TODO: Avoid having to loop over items again.
+    for (const item of feats) {
+      const ctx = (context.itemContext[item.id] ??= {});
+      ctx.rowActions = FeatureRowActionRuntime.getRowActions({
+        app: context.sheet,
+        data: {
+          editable: context.editable,
+          owner: context.owner,
+          unlocked: context.unlocked,
+          usesSheetTab,
+        },
+        rowDocument: item,
+        sheetDocument: context.document,
+      });
+    }
+
+    const features: FeatureSection[] =
+      CharacterSheetSections.buildQuadroneFeatureSections(
+        context,
+        CONSTANTS.TAB_CHARACTER_FEATURES,
+        feats,
+        {
+          canCreate: true,
+        },
+      );
+
+    const applyStandardItemHeaderActions = (section: TidyItemSectionBase) => {
+      section.sectionActions = SectionActions.getStandardItemHeaderActions(
+        this.actor,
+        this.actor.isOwner,
+        context.unlocked,
+        section,
+      );
+    };
+
+    // Apply sections to their section lists
+    context.inventory = Object.values(inventory);
+
+    // TODO: Find a more organized / sane way to apply header actions to sections?
+    context.inventory.forEach(applyStandardItemHeaderActions);
+
+    context.spellbook = spellbook;
+
+    context.spellbook.forEach((section) => {
+      section.sectionActions = SectionActions.getSpellbookItemHeaderActions(
+        this.actor,
+        this.actor.isOwner,
+        context.unlocked,
+        section,
+      );
+    });
+
+    context.features = Object.values(features);
+    context.features.forEach(applyStandardItemHeaderActions);
+  }
+
+  /**
+   * A helper method to establish the displayed preparation state for an item.
+   * @param {Item5e} item     Item being prepared for display.
+   * @param {object} context  Context data for display.
+   * @protected
+   */
+  protected _prepareItem(item: Item5e, context: CharacterItemQuadroneContext) {
+    if (item.type === CONSTANTS.ITEM_TYPE_SPELL) {
+      const linked = item.system.linkedActivity?.item;
+
+      if (this._concentration.items.has(item)) {
+        context.concentration = true;
+      }
+
+      const vsmcr = game.i18n.getListFormatter({ style: 'narrow' }).format(
+        item.labels.components.all
+          .filter((a: any) => !isNil(a?.abbr)) // a valid use case with Default Sheets is to exclude Abbreviation. Quadrone's design doesn't account for that, so we will exclude any components that don't supply an abbreviation.
+          .map((a: any) => a.abbr),
+      );
+
+      context.subtitle = context.actionSubtitle = [
+        linked
+          ? linked.name
+          : this.actor.identifiedItems.get(item.system.sourceItem)?.first()
+              ?.name,
+        vsmcr,
+      ].filterJoin(' &bull; ');
+    } else if (Inventory.isItemInventoryType(item)) {
+      const containerName = this.actor.items.get(item.system.container)?.name;
+      context.actionSubtitle = [containerName].filterJoin(' &bull; ');
+    }
+
+    // Save
+    context.save = ItemContext.getItemSaveContext(item);
+
+    // To Hit
+    context.toHit = ItemContext.getToHit(item);
+  }
+
+  /* -------------------------------------------- */
+
+  _getCharacterSenses(): CharacterSpeedSenseContext {
+    const senses = super._getSenses();
+
+    const main: ActorSpeedSenseEntryContext[] = [];
+
+    if (senses.at(0)?.key === 'darkvision') {
+      main.push(senses.shift()!);
+    }
+
+    return {
+      main: main,
+      secondary: senses,
+      traitEntries: [...main, ...senses],
+    };
+  }
+
+  _getCharacterMovementSpeeds(): CharacterSpeedSenseContext {
+    const speeds = super._getMovementSpeeds();
+
+    const movementSpeeds = speeds.filter(
+      (s) => s.key !== 'ignoredDifficultTerrain',
+    );
+    const difficultTerrainSpeeds = speeds.filter(
+      (s) => s.key === 'ignoredDifficultTerrain',
+    );
+
+    const main = movementSpeeds.slice(0, 2);
+    const secondary = [...movementSpeeds.slice(2), ...difficultTerrainSpeeds];
+    return {
+      main: main,
+      secondary: secondary,
+      traitEntries: [...main, ...secondary],
+    };
+  }
+
+  /**
+   * Prepare bastion facility data for display.
+   */
+  async _prepareFacilities(
+    context: CharacterSheetQuadroneContext,
+  ): Promise<void> {
+    const { defenders, facilities, byId } = await Bastion.prepareFacilities(
+      this.actor,
+    );
+
+    context.defenders = defenders;
+    context.facilities = facilities;
+
+    for (const [facilityId, chosen] of byId) {
+      const itemContext = (context.itemContext[facilityId] ??= {});
+      itemContext.chosen = chosen;
+    }
+  }
+
+  /* -------------------------------------------- */
+  /*  Life-Cycle Handlers                         */
+  /* -------------------------------------------- */
+
+  async _renderFrame(options: TidyDocumentSheetRenderOptions) {
+    const element = await super._renderFrame(options);
+
+    // Frame renders before _renderHTML populates _context; read theme from the document.
+    const themeSettings = ThemeQuadrone.getSheetThemeSettings({
+      doc: this.actor,
+    });
+    if (themeSettings.useHeaderBackground) {
+      element.querySelector('.window-header')?.classList.add('theme-dark');
+    }
+
+    return element;
+  }
+
+  async _preRender(
+    context: CharacterSheetQuadroneContext,
+    options: TidyDocumentSheetRenderOptions,
+  ) {
+    await super._preRender(context, options);
+
+    // Show death tray at 0 HP
+    const renderContext = options.renderContext ?? options.action;
+    const renderData = options.renderData ?? options.data;
+    const isUpdate =
+      renderContext === 'update' || renderContext === 'updateActor';
+    const hp = foundry.utils.getProperty(
+      renderData ?? {},
+      'system.attributes.hp.value',
+    );
+
+    if (isUpdate && hp === 0) {
+      this._showDeathSaves = context.showDeathSaves = true;
+    }
+  }
+
+  toggleDeathSaves(force?: boolean) {
+    this._showDeathSaves = force ?? !this._showDeathSaves;
+    this.render();
+  }
+
+  /* -------------------------------------------- */
+  /*  Custom Content Rendering                    */
+  /* -------------------------------------------- */
+
+  async _getCustomContents(
+    context: CharacterSheetQuadroneContext,
+    options: TidyDocumentSheetRenderOptions,
+  ): Promise<RenderedSheetPart[]> {
+    const renderedTabParts = context.sidebarTabs
+      ? await this._customContentRenderer.renderTabContents(
+          context.sidebarTabs,
+          context,
+          options,
+        )
+      : [];
+
+    return renderedTabParts;
+  }
+
+  /* -------------------------------------------- */
+  /*  Sheet Actions                               */
+  /* -------------------------------------------- */
+
+  static async #openSidebarTabConfiguration(
+    this: Tidy5eCharacterSheetQuadrone,
+    _event: Event,
+    _target: HTMLElement,
+  ) {
+    this.openSheetSettings(TidySheetSettingsTabIds.sidebarTabConfig);
+  }
+
+  /* -------------------------------------------- */
+  /*  Drag and Drop                               */
+  /* -------------------------------------------- */
+
+  _allowedDropBehaviors(
+    event: DragEvent,
+    data?: Record<string, any>,
+  ): Set<DropEffectValue> {
+    if (data?.action === 'occupant') {
+      return new Set<DropEffectValue>(['move', 'copy']);
+    }
+
+    return super._allowedDropBehaviors(event, data);
+  }
+
+  /** @override */
+  _defaultDropBehavior(
+    event: DragEvent & { currentTarget: HTMLElement; target: HTMLElement },
+    data: any,
+  ): DropEffectValue {
+    if (
+      data.dnd5e?.action === 'favorite' ||
+      (['Activity', 'Item'].includes(data.type) &&
+        event.target.closest('.favorites'))
+    ) {
+      return 'link';
+    }
+
+    if (data.action === 'occupant') {
+      return 'move';
+    }
+
+    return super._defaultDropBehavior(event, data);
+  }
+
+  _onDragStart(
+    event: DragEvent & { target: HTMLElement; currentTarget: HTMLElement },
+  ) {
+    if (!event.dataTransfer) {
+      return;
+    }
+
+    // Facilities
+    if (event.currentTarget.matches('[data-item-id][data-facility-id]')) {
+      super._onDragItem(event);
+      return;
+    }
+
+    // Facility Occupants
+    if (event.currentTarget.matches('[data-actor-uuid][data-facility-id]')) {
+      this._onDragFacilityOccupant(event);
+      return;
+    }
+
+    // Favorites
+    const favoriteEl = event.target.closest('[data-favorite-id]');
+    const favoriteId = favoriteEl?.getAttribute('data-favorite-id');
+    const favorite = this.actor.system.favorites.find(
+      (f: CharacterFavorite) => f.id === favoriteId,
+    ) as CharacterFavorite | undefined;
+
+    if (favorite) {
+      const favoriteSortDragData = {
+        dnd5e: {
+          action: 'favorite',
+          type: favorite.type,
+          id: favorite.id,
+        },
+      };
+
+      event.dataTransfer.setData(
+        'application/json',
+        JSON.stringify(favoriteSortDragData),
+      );
+
+      event.dataTransfer.effectAllowed = 'link';
+
+      return;
+    }
+
+    // Favorite-ables
+    const { key } =
+      event.target.closest<HTMLElement>('[data-key]')?.dataset ?? {};
+
+    const isSlots = !!event.target.closest('[data-slots]');
+
+    let type;
+    if (!isNil(key) && key in CONFIG.DND5E.skills) {
+      type = 'skill';
+    } else if (!isNil(key) && key in CONFIG.DND5E.tools) {
+      type = 'tool';
+    } else if (isSlots) {
+      type = 'slots';
+    }
+
+    if (type) {
+      // Add another deferred deactivation to catch the second pointerenter event that seems to be fired on Firefox.
+      requestAnimationFrame(() => game.tooltip.deactivate());
+      game.tooltip.deactivate();
+
+      const dragData: Record<string, any> = {
+        dnd5e: { action: 'favorite', type },
+      };
+
+      dragData.dnd5e.id = key;
+
+      event.dataTransfer.setData('application/json', JSON.stringify(dragData));
+      event.dataTransfer.effectAllowed = 'link';
+
+      return;
+    }
+
+    super._onDragStart(event);
+  }
+
+  _onDragFacilityOccupant(
+    event: DragEvent & { target: HTMLElement; currentTarget: HTMLElement },
+  ) {
+    const {
+      actorUuid,
+      facilityId,
+      prop,
+      index: indexValue,
+    } = event.currentTarget.dataset ?? {};
+    const index = parseInt(indexValue ?? '');
+    const item = this.document.items.get(facilityId);
+
+    if (!item || !actorUuid || !prop || isNaN(index)) {
+      return;
+    }
+
+    event.dataTransfer?.setData(
+      'application/json',
+      JSON.stringify({
+        action: 'occupant',
+        actorUuid: actorUuid,
+        facilityUuid: item.uuid,
+        prop: prop,
+        index: index,
+      } satisfies FacilityOccupantDragData),
+    );
+  }
+
+  async _onDrop(
+    event: DragEvent & { currentTarget: HTMLElement; target: HTMLElement },
+  ) {
+    const dragData =
+      event.dataTransfer!.getData('application/json') ||
+      event.dataTransfer!.getData('text/plain');
+
+    if (!dragData) {
+      return await super._onDrop(event);
+    }
+
+    let data;
+
+    try {
+      data = JSON.parse(dragData);
+    } catch (e) {
+      error(
+        `An error occurred while handling a drop to character ${this.document.name} - ${this.document.uuid}`,
+        false,
+        e,
+      );
+      return await super._onDrop(event);
+    }
+
+    if (event.target.closest('.favorites')) {
+      const { action, type, id } = data.dnd5e ?? {};
+
+      // Add to Favorites
+      if (action === 'favorite') {
+        return await this._onDropFavorite(event, { type, id });
+      }
+
+      // Handle Activity drop
+      if (data.type === 'Activity') {
+        const activity = await fromUuid(data.uuid);
+        if (activity) {
+          return await this._onDropActivity(event, activity);
+        }
+      }
+    }
+
+    if (data.action === 'occupant') {
+      return this._onDropOccupant(event, data);
+    }
+
+    return await super._onDrop(event);
+  }
+
+  /**
+   * Handle an owned item or effect being dropped in the favorites area.
+   * @param {PointerEvent} event         The triggering event.
+   * @param {ActorFavorites5e} favorite  The favorite that was dropped.
+   * @returns {Promise<Actor5e>|void}
+   * @protected
+   */
+  async _onDropFavorite(
+    event: DragEvent & { currentTarget: HTMLElement; target: HTMLElement },
+    favorite: { type: string; id: string },
+  ): Promise<Actor5e> | Promise<any> {
+    // Sort if it's already a favorite
+    if (this.actor.system.hasFavorite(favorite.id)) {
+      return await this._onSortFavorites(event, favorite.id);
+    }
+
+    // Add and sort if it's a new favorite, so it drops right in the place where the user wanted it.
+    await this.actor.system.addFavorite(favorite);
+    return await this._onSortFavorites(event, favorite.id);
+  }
+
+  /**
+   * Handle re-ordering the favorites list.
+   * @param {DragEvent} event  The drop event.
+   * @param {string} srcId     The identifier of the dropped favorite.
+   * @returns {Promise<Actor5e>|void}
+   * @protected
+   */
+  async _onSortFavorites(
+    event: DragEvent & { currentTarget: HTMLElement; target: HTMLElement },
+    srcId: string,
+  ) {
+    const targetId = event.target
+      ?.closest('[data-favorite-id]')
+      ?.getAttribute('data-favorite-id');
+    if (!targetId) return;
+    let source;
+    let target;
+    if (srcId === targetId) return;
+    const siblings = this.actor.system.favorites.filter(
+      (f: CharacterFavorite) => {
+        if (f.id === targetId) target = f;
+        else if (f.id === srcId) source = f;
+        return f.id !== srcId;
+      },
+    );
+    const updates = foundry.utils.performIntegerSort(source, {
+      target,
+      siblings,
+    });
+    const favorites = this.actor.system.favorites.reduce(
+      (map: Map<string, CharacterFavorite>, f: CharacterFavorite) =>
+        map.set(f.id, { ...f }),
+      new Map<string, CharacterFavorite>(),
+    );
+    for (const { target, update } of updates) {
+      const favorite = favorites.get(target.id);
+      foundry.utils.mergeObject(favorite, update);
+    }
+    return await this.actor.update({
+      'system.favorites': Array.from(favorites.values()),
+    });
+  }
+
+  /** @inheritDoc */
+  async _onDropActiveEffect(
+    event: DragEvent & { currentTarget: HTMLElement; target: HTMLElement },
+    effect: ActiveEffect5e,
+  ) {
+    if (!event.target.closest('.favorites') || effect.target !== this.actor) {
+      return await super._onDropActiveEffect(event, effect);
+    }
+    const uuid = foundry.utils.buildRelativeUuid(effect, this.actor);
+    return await this._onDropFavorite(event, { type: 'effect', id: uuid });
+  }
+
+  /**
+   * Handle dropping an Activity onto the sheet.
+   * @param {DragEvent} event    The originating drag event.
+   * @param {Activity} activity  The dropped Activity document.
+   * @returns {Promise<Actor5e|void>}
+   * @protected
+   */
+  async _onDropActivity(
+    event: DragEvent & { currentTarget: HTMLElement; target: HTMLElement },
+    document: Activity5e,
+  ): Promise<Actor5e | void> {
+    if (!event.target.closest('.favorites') || document.actor !== this.actor) {
+      return await super._onDropActivity(event, document);
+    }
+
+    const relativeUuid = `${foundry.utils.buildRelativeUuid(document.item,
+      this.actor,
+    )}.Activity.${document.id}`;
+
+    return await this._onDropFavorite(event, {
+      type: 'activity',
+      id: relativeUuid,
+    });
+  }
+
+  async _onDropItem(
+    event: DragEvent & { currentTarget: HTMLElement; target: HTMLElement },
+    document: Item5e,
+  ) {
+    if (!event.target.closest('.favorites') || document.parent !== this.actor) {
+      // Handle Feature Origin Transfer
+      let targetOrigin = event.target.closest<HTMLElement>(
+        '[data-tidy-section-key]',
+      )?.dataset?.[CONSTANTS.SYSTEM_FLAG_PATH_ADVANCEMENT_ORIGIN];
+
+      let sourceItemOrigin = FoundryAdapter.getProperty(
+        document,
+        CONSTANTS.SYSTEM_FLAG_PATH_ADVANCEMENT_ORIGIN,
+      );
+
+      if (sourceItemOrigin !== targetOrigin && document.parent === this.actor) {
+        !isNil(targetOrigin)
+          ? await document.update({
+              [CONSTANTS.SYSTEM_FLAG_PATH_ADVANCEMENT_ORIGIN]: targetOrigin,
+            })
+          : await document.unsetFlag(
+              'dnd5e',
+              CONSTANTS.SYSTEM_FLAG_ADVANCEMENT_ORIGIN,
+            );
+      }
+
+      return await super._onDropItem(event, document);
+    }
+    const uuid = foundry.utils.buildRelativeUuid(document, this.actor);
+    return await this._onDropFavorite(event, { type: 'item', id: uuid });
+  }
+
+  /**
+   * Handles dropping a facility occupant into a facility group.
+   * Accounts for sorting, copying, and moving to a new group in
+   * the same or a new facility.
+   */
+  async _onDropOccupant(
+    event: DragEvent & { currentTarget: HTMLElement; target: HTMLElement },
+    data: FacilityOccupantDragData,
+  ) {
+    const behavior = this._dropBehavior(event);
+    const target = event.target;
+
+    const {
+      prop: sourceProp,
+      index: sourceIndex,
+      actorUuid,
+      facilityUuid: sourceFacilityUuid,
+    } = data;
+    const sourceFacility = await fromUuid(sourceFacilityUuid);
+
+    const { facilityId: targetFacilityId } =
+      target.closest<HTMLElement>('[data-facility-id]')?.dataset ?? {};
+    const targetFacility = this.document.items.get(targetFacilityId);
+    const { prop: targetProp, index: targetIndexValue } =
+      target.closest<HTMLElement>('[data-prop]')?.dataset ?? {};
+    const targetIndex = parseInt(targetIndexValue ?? '');
+
+    if (!targetProp) {
+      return;
+    }
+
+    // Sort
+    if (
+      behavior === 'move' &&
+      sourceFacilityUuid === targetFacility.uuid &&
+      sourceProp === targetProp &&
+      !isNaN(targetIndex)
+    ) {
+      return await this._onSortFacilityOccupants(
+        targetFacility,
+        targetProp,
+        sourceIndex,
+        targetIndex,
+      );
+    }
+
+    const { value, max } = foundry.utils.getProperty(
+      targetFacility,
+      targetProp,
+    );
+    const roomIsAvailable = value.length < max;
+    const isDroppingSomewhereNew =
+      sourceFacilityUuid !== targetFacility.uuid || sourceProp !== targetProp;
+    const canCreate =
+      roomIsAvailable &&
+      (behavior === 'copy' || (behavior === 'move' && isDroppingSomewhereNew));
+
+    // Add the occupant
+    if (canCreate) {
+      await this._onDropActorAddToFacility(
+        targetFacility,
+        targetProp,
+        actorUuid,
+      );
+
+      // Remove from source facility if moving somewhere new
+      if (behavior === 'move') {
+        await Bastion.deleteOccupant(sourceFacility, sourceProp, sourceIndex);
+      }
+    }
+  }
+
+  _onSortFacilityOccupants(
+    facility: Item5e,
+    prop: string,
+    sourceIndex: number,
+    targetIndex: number,
+  ) {
+    const { value } = foundry.utils.getProperty(facility, prop);
+
+    arrayTransfer({
+      arrFrom: value,
+      arrTo: value,
+      arrFromIndex: sourceIndex,
+      arrToIndex: targetIndex,
+    });
+
+    return facility.update({
+      [`${prop}.value`]: value,
+    });
+  }
+
+  getSheetTabInclusionMode() {
+    const enableAutoInclusion =
+      TidyFlags.characterSheetTabAutomaticallyIncludeUsableItems.get(
+        this.document,
+      ) ??
+      SettingsProvider.settings.characterSheetTabAutomaticallyIncludeUsableItems.get();
+
+    return enableAutoInclusion ? 'usable-and-flag' : 'flag-only';
+  }
+}
+
+type FacilityOccupantDragData = {
+  action: string;
+  actorUuid: string;
+  facilityUuid: string;
+  prop: string;
+  index: number;
+};

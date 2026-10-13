@@ -1,0 +1,159 @@
+<script lang="ts">
+  import { InputAttachments } from 'src/attachments/input-attachments.svelte';
+  import { CONSTANTS } from 'src/constants';
+  import { SheetPinsProvider } from 'src/features/sheet-pins/SheetPinsProvider';
+  import { FoundryAdapter } from 'src/foundry/foundry-adapter';
+  import { getActorSheetQuadroneContext } from 'src/sheets/sheet-context.svelte';
+  import type { SheetPinActivityContext } from 'src/types/types';
+  import { isNil } from 'src/utils/data';
+  import { coalesce } from 'src/utils/formatting';
+
+  interface Props {
+    ctx: SheetPinActivityContext;
+  }
+
+  const { ctx }: Props = $props();
+
+  let isEditing = $state(false);
+
+  // If the activity is using its default icon, fall back to the item's image instead.
+  let img = $derived(
+    ctx.document.img ===
+      ctx.document.documentConfig?.[ctx.document.type]?.documentClass?.metadata
+        ?.img
+      ? ctx.document.item.img
+      : ctx.document.img,
+  );
+
+  const { value, maxText } = $derived.by(() => {
+    const uses = ctx.document.uses;
+
+    return {
+      uses: uses,
+      value: (uses.max ?? 0) - uses.spent,
+      maxText: isNil(uses.max, '') ? '—' : uses.max.toString(),
+    };
+  });
+
+  let context = $derived(getActorSheetQuadroneContext());
+</script>
+
+{#snippet pinName()}
+  <button
+    type="button"
+    class="button button-borderless font-label-medium pin-name truncate flex1"
+    data-action="showDocument"
+    data-uuid={ctx.document.sheet.uuid}
+  >
+    {coalesce(ctx.alias, ctx.document.name)}
+  </button>
+{/snippet}
+
+<div
+  role="button"
+  tabindex="0"
+  class="sheet-pin attribute-pin"
+  data-tidy-draggable
+  data-item-id={ctx.document.item.id}
+  data-activity-id={ctx.document.id}
+  data-context-menu={CONSTANTS.CONTEXT_MENU_TYPE_ACTIVITIES}
+  data-configurable="true"
+  data-pin-id={ctx.id}
+>
+  <div class="pin-document-image">
+    <a
+      role="button"
+      tabindex="0"
+      class={['tidy-table-row-use-button', { disabled: !context.editable }]}
+      data-action="activity-use"
+      data-has-roll-modes
+    >
+      <img class="item-image" alt={ctx.document.name} src={img} />
+      <span class="roll-prompt">
+        <i class="fa fa-dice-d20"></i>
+      </span>
+    </a>
+  </div>
+  <div class="pin-details">
+    {#if context.unlocked && isEditing}
+      <div
+        class="pin-name-container flexrow"
+        title="{ctx.document.name} | {ctx.document.item.name}"
+      >
+        {let input = $state<HTMLInputElement>()}
+        <input
+          bind:this={input}
+          type="text"
+          class="pin-name"
+          value={ctx.alias}
+          placeholder={ctx.document.name}
+        />
+        <button
+          type="button"
+          class="button button-icon-only flexshrink save-name-button"
+          aria-label="Save Alias"
+          onclick={(ev) => {
+            const tabId = CONFIG.TIDY5E.utils.getTabIdFromEvent(ev);
+
+            if (input && tabId) {
+              SheetPinsProvider.setAlias(ctx.document, tabId, input.value);
+            }
+            isEditing = false;
+            return false;
+          }}
+        >
+          <i class="fa-solid fa-save"></i>
+        </button>
+      </div>
+    {:else}
+      <div
+        class="pin-name-container flexrow"
+        title="{ctx.document.name} | {ctx.document.item.name}"
+      >
+        {#if context.unlocked}
+          {@render pinName()}
+          <button
+            class="button button-borderless button-icon-only flexshrink edit-name-button"
+            onclick={(ev) => {
+              isEditing = true;
+              return false;
+            }}
+          >
+            <i class="fa-solid fa-pencil"></i>
+          </button>
+        {:else}
+          {@render pinName()}
+        {/if}
+      </div>
+      <div class="pin-context {ctx.resource}">
+        {#if ctx.presentation === 'limited-uses'}
+          <span class="inline-uses">
+            <input
+              type="text"
+              inputmode="numeric"
+              class={['uninput uses-value', { diminished: value < 1 }]}
+              data-name="uses.value"
+              {@attach InputAttachments.selectOnFocus}
+              {value}
+            />
+            <span class="divider">/</span>
+            <span class="uses-max">{maxText}</span>
+          </span>
+        {:else if ctx.presentation === 'none'}
+          <span class="subtitle font-default-medium color-text-lighter"
+            >{ctx.document.parent.parent.name}</span
+          >
+        {/if}
+      </div>
+    {/if}
+  </div>
+  {#if context.unlocked && !isEditing}
+    <a
+      class="button button-icon-only button-borderless"
+      data-action="showContextMenu"
+      data-target-selector="[data-activity-id]"
+    >
+      <i class="fas fa-ellipsis-vertical"></i>
+    </a>
+  {/if}
+</div>

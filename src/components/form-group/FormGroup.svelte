@@ -1,0 +1,188 @@
+<script lang="ts">
+  import type { ComponentProps, Snippet } from 'svelte';
+  import type { ClassValue } from 'svelte/elements';
+  import { FoundryAdapter } from 'src/foundry/foundry-adapter';
+  import TidyFormInput from './TidyFormInput.svelte';
+  import { error } from 'src/utils/logging';
+
+  type FormInputOptions = Omit<
+    ComponentProps<typeof TidyFormInput>,
+    'document'
+  >;
+
+  type Props = Partial<FormInputOptions> & {
+    formLabel?: Snippet;
+    children?: Snippet;
+    beforeGroupEnd?: Snippet;
+    document?: any;
+    fields?: FormInputOptions[];
+    groupClasses?: ClassValue;
+    hidden?: boolean | 'until-found';
+    hint?: string;
+    label?: string;
+    labelFor?: string;
+    localize?: boolean;
+    stacked?: boolean;
+    units?: string;
+    /**
+     * Denotes whether to use the `name` attribute ('full') to opt the input into full form submission,
+     * the `data-name` attribute ('single') to opt the input into single-input submission,
+     * or to apply no submission-related attribute ('none').
+     * @default 'single'
+     */
+    submissionMode?: 'full' | 'single' | 'none';
+    onChange?: (value: any) => Promise<void> | void;
+  };
+
+  let {
+    blankLabel,
+    formLabel,
+    children,
+    beforeGroupEnd,
+    choices,
+    condition,
+    config,
+    disabledValue,
+    disableOverriddenInputs,
+    document,
+    field,
+    fields = [],
+    groupClasses,
+    hidden,
+    hint,
+    label,
+    labelAttr,
+    labelFor,
+    localize = true,
+    stacked,
+    tooltip,
+    units,
+    valueAttr,
+    submissionMode = 'single',
+    onChange,
+  }: Props = $props();
+
+  let effectiveLabel = $derived(label ?? field?.label ?? field?.fieldPath);
+
+  let effectiveHint = $derived(hint ?? config?.hint ?? field?.hint);
+
+  let fieldPathSlug = $derived(field?.fieldPath);
+
+  function handleOnChange(event: Event) {
+    const target = event.target;
+
+    if (!(target instanceof HTMLElement)) {
+      return;
+    }
+
+    const formElement = target as
+      | HTMLInputElement
+      | HTMLSelectElement
+      | HTMLTextAreaElement;
+
+    let value: string | boolean = formElement.value;
+
+    // Special handling for checkboxes.
+    if (
+      formElement instanceof HTMLInputElement &&
+      (formElement.type === 'checkbox' || formElement.type === 'radio')
+    ) {
+      value = formElement.checked;
+    }
+
+    onChange?.(value);
+  }
+</script>
+
+<svelte:boundary
+  onerror={(e) =>
+    error('An error occurred while rendering a form group.', false, {
+      error: e,
+      field,
+      config,
+    })}
+>
+  <div
+    class={[
+      'form-group',
+      {
+        stacked: stacked,
+        hidden: hidden,
+      },
+      groupClasses,
+    ]}
+    data-field-path={fieldPathSlug}
+    onchange={(event) => !!onChange && handleOnChange(event)}
+  >
+    {#if formLabel}
+      {@render formLabel()}
+    {:else}
+      <label for={labelFor}>
+        {#if effectiveLabel}
+          {localize ? FoundryAdapter.localize(effectiveLabel) : effectiveLabel}
+        {/if}
+        {#if units}
+          <span class="units">{FoundryAdapter.localize(units)}</span>
+        {/if}
+      </label>
+    {/if}
+    <div class="form-fields">
+      {#if field}
+        {@render FormInput({
+          blankLabel,
+          choices,
+          config,
+          disabledValue,
+          disableOverriddenInputs,
+          field,
+          tooltip,
+          labelAttr,
+          valueAttr,
+          condition,
+        })}
+      {/if}
+      {#each fields as options}
+        {@render FormInput(options)}
+      {/each}
+      {@render children?.()}
+    </div>
+    {@render beforeGroupEnd?.()}
+    {#if effectiveHint}
+      <p class="hint">
+        {@html localize
+          ? FoundryAdapter.localize(effectiveHint)
+          : effectiveHint}
+      </p>
+    {/if}
+  </div>
+</svelte:boundary>
+
+{#snippet FormInput({
+  blankLabel,
+  choices,
+  config,
+  disabledValue,
+  disableOverriddenInputs,
+  field,
+  tooltip,
+  labelAttr,
+  valueAttr,
+  condition,
+}: FormInputOptions)}
+  {#if field}
+    <TidyFormInput
+      {blankLabel}
+      {choices}
+      {config}
+      {disabledValue}
+      {disableOverriddenInputs}
+      {document}
+      {field}
+      {tooltip}
+      {labelAttr}
+      {valueAttr}
+      {submissionMode}
+      {condition}
+    />
+  {/if}
+{/snippet}

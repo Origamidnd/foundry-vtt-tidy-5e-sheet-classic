@@ -1,0 +1,359 @@
+<script lang="ts">
+  import { FoundryAdapter } from 'src/foundry/foundry-adapter';
+  import { getVehicleSheetQuadroneContext } from 'src/sheets/sheet-context.svelte';
+  import TidyTable from 'src/components/table-quadrone/TidyTable.svelte';
+  import TidyTableHeaderRow from 'src/components/table-quadrone/TidyTableHeaderRow.svelte';
+  import TidyTableHeaderCell from 'src/components/table-quadrone/TidyTableHeaderCell.svelte';
+  import TidyTableRow from 'src/components/table-quadrone/TidyTableRow.svelte';
+  import TidyTableCell from 'src/components/table-quadrone/TidyTableCell.svelte';
+  import { CONSTANTS } from 'src/constants';
+  import TextInputQuadrone from 'src/components/inputs/TextInputQuadrone.svelte';
+  import { ThemeQuadrone } from 'src/theme/theme-quadrone.svelte';
+  import { observeResize } from 'src/features/resize-observation/attachments';
+  import { RowActionRuntimeBase } from 'src/runtime/table-row-actions/RowActionRuntimeBase';
+  import SectionActionsColumnHeader from '../../item/columns/SectionActionsColumnHeader.svelte';
+  import RowActionsColumn from '../../item/columns/RowActionsColumn.svelte';
+  import { VehicleAssignedCrewColumnRuntime } from 'src/runtime/table-columns/VehicleAssignedCrewColumnRuntime';
+  import { VehiclePassengerColumnRuntime } from 'src/runtime/table-columns/VehiclePassengerColumnRuntime';
+  import TidyTableCustomCells from 'src/components/table-quadrone/parts/TidyTableCustomCells.svelte';
+  import TidyTableCustomHeaderCells from 'src/components/table-quadrone/parts/TidyTableCustomHeaderCells.svelte';
+
+  let context = $derived(getVehicleSheetQuadroneContext());
+  let isBasicTheme = $derived(
+    ThemeQuadrone.getSheetThemeSettings({ doc: context.document })
+      .useBasicTheme ?? false,
+  );
+
+  const localize = FoundryAdapter.localize;
+
+  let sectionsInlineWidth: number = $state(0);
+
+  function onResize(entry: ResizeObserverEntry) {
+    sectionsInlineWidth = entry.borderBoxSize[0].inlineSize;
+  }
+</script>
+
+<div class="tab-content">
+  <div class="sheet-pins" data-tidy-sheet-part="sheet-pins">
+    <div
+      class={[
+        'sheet-pin',
+        {
+          'pin-warning':
+            context.system.crew.value.length > context.system.crew.max,
+        },
+      ]}
+      data-area={CONSTANTS.SECTION_TYPE_CREW}
+    >
+      <div class="pin-details">
+        <div class="pin-name-container">
+          <span
+            class="font-label-medium pin-name truncate flex1"
+            data-tooltip="DND5E.VEHICLE.FIELDS.crew.max.label"
+          >
+            {localize('DND5E.VEHICLE.FIELDS.crew.max.label')}
+          </span>
+        </div>
+        <span class="inline-uses">
+          <span
+            class={[
+              'uses-value font-label-large color-text-default',
+              { diminished: context.system.crew.value.length < 1 },
+            ]}
+          >
+            {context.system.crew.value.length}
+          </span>
+          <span class="separator">/</span>
+          <TextInputQuadrone
+            class={[
+              'uses-max font-label-large color-text-default align-start',
+              { uninput: !context.unlocked },
+              { diminished: context.system.crew.max < 1 },
+            ]}
+            document={context.document}
+            field="system.crew.max"
+            value={context.system.crew.max}
+            placeholder="—"
+          />
+        </span>
+        {#if context.crewBrokenLinks.length && context.editable}
+          <!-- svelte-ignore a11y_missing_attribute -->
+          <a
+            role="button"
+            tabindex="0"
+            data-action="removeBrokenLinks"
+          >
+            <i class="fa-solid fa-link-broken"></i>
+            {localize('TIDY5E.Vehicle.RemoveBrokenLinks', {
+              value: context.crewBrokenLinks.length,
+            })}
+          </a>
+        {/if}
+      </div>
+      {#if context.system.crew.max > 0}
+        <!-- svelte-ignore a11y_missing_attribute -->
+        <a
+          role="button"
+          tabindex="0"
+          class="button button-icon-only button-borderless highlight-on-hover"
+          data-action="browseActors"
+          aria-label={FoundryAdapter.localize('TIDY5E.CompendiumBrowser', {
+            name: FoundryAdapter.localize('DND5E.VEHICLE.Crew.Label'),
+          })}
+          data-tooltip=""
+        >
+          <i class="fas fa-user-magnifying-glass"></i>
+        </a>
+      {/if}
+    </div>
+
+    <div
+      class={[
+        'sheet-pin',
+        {
+          'pin-warning':
+            context.system.passengers.value.length >
+            context.system.passengers.max,
+        },
+      ]}
+      data-area={CONSTANTS.SECTION_TYPE_PASSENGERS}
+    >
+      <div class="pin-details">
+        <div class="pin-name-container">
+          <span
+            class="font-label-medium pin-name truncate flex1"
+            data-tooltip="DND5E.VEHICLE.FIELDS.passengers.max.label"
+          >
+            {localize('DND5E.VEHICLE.FIELDS.passengers.max.label')}
+          </span>
+        </div>
+        <span class="inline-uses">
+          <span
+            class={[
+              'uses-value font-label-large color-text-default',
+              { diminished: context.system.passengers.value.length < 1 },
+            ]}
+          >
+            {context.system.passengers.value.length}
+          </span>
+          <span class="separator">/</span>
+          <TextInputQuadrone
+            class={[
+              'uses-max font-label-large color-text-default align-start',
+              { uninput: !context.unlocked },
+              { diminished: context.system.passengers.max < 1 },
+            ]}
+            document={context.document}
+            field="system.passengers.max"
+            value={context.system.passengers.max}
+            placeholder="—"
+          />
+        </span>
+        {#if context.passengerBrokenLinks.length && context.editable}
+          <!-- svelte-ignore a11y_missing_attribute -->
+          <a
+            role="button"
+            tabindex="0"
+            data-action="removeBrokenLinks"
+          >
+            <i class="fa-solid fa-link-broken"></i>
+            {localize('TIDY5E.Vehicle.RemoveBrokenLinks', {
+              value: context.passengerBrokenLinks.length,
+            })}
+          </a>
+        {/if}
+      </div>
+      {#if context.system.passengers.max > 0}
+        <!-- svelte-ignore a11y_missing_attribute -->
+        <a
+          role="button"
+          tabindex="0"
+          class="button button-icon-only button-borderless highlight-on-hover"
+          data-action="browseActors"
+          aria-label={FoundryAdapter.localize('TIDY5E.CompendiumBrowser', {
+            name: FoundryAdapter.localize(
+              'TIDY5E.Vehicle.Member.Passenger.Label',
+            ),
+          })}
+          data-tooltip=""
+        >
+          <i class="fas fa-user-magnifying-glass"></i>
+        </a>
+      {/if}
+    </div>
+  </div>
+
+  <div class="tidy-table-container" {@attach observeResize(onResize)}>
+    {#each context.crewAndPassengers as section (section.key)}
+      {#if section.members.length || section.showEmptyState}
+        <!-- TODO: Someday, eliminate this duplicated nonsense required by TypeScript -->
+        {const rowActionInfo = $derived(
+          section.type === 'crew'
+            ? RowActionRuntimeBase.getRowActionWidthInfo(
+                section.members,
+                (entry) => entry.rowActions,
+                context.unlocked ? section.sectionActions : [],
+              )
+            : RowActionRuntimeBase.getRowActionWidthInfo(
+                section.members,
+                (entry) => entry.rowActions,
+                context.unlocked ? section.sectionActions : [],
+              ),
+        )}
+
+        <!-- TODO: Someday, eliminate this duplicated effort -->
+        {const hiddenColumns = $derived(
+          section.type === 'crew'
+            ? VehicleAssignedCrewColumnRuntime.determineHiddenColumns(
+                sectionsInlineWidth - rowActionInfo.widthPx,
+                section.columns,
+              )
+            : VehiclePassengerColumnRuntime.determineHiddenColumns(
+                sectionsInlineWidth - rowActionInfo.widthPx,
+                section.columns,
+              ),
+        )}
+        <TidyTable
+          key={section.key}
+          data-area={section.type}
+          data-custom-section={section.custom ? true : null}
+        >
+          {#snippet header(expanded)}
+            <TidyTableHeaderRow class={!isBasicTheme ? 'theme-dark' : ''}>
+              <TidyTableHeaderCell primary={true} class="header-label-cell">
+                <h3>
+                  {localize(section.label)}
+                </h3>
+                {#if section.showCount}
+                  <span class="table-header-count"
+                    >{section.members.length}</span
+                  >
+                {/if}
+              </TidyTableHeaderCell>
+
+              <TidyTableCustomHeaderCells
+                {context}
+                {hiddenColumns}
+                {section}
+                {expanded}
+              />
+
+              <TidyTableHeaderCell
+                class="header-cell-actions"
+                columnWidth="{rowActionInfo.widthRems}rem"
+                data-tidy-column-key={CONSTANTS.COLUMN_KEY_ROW_ACTIONS}
+              >
+                <SectionActionsColumnHeader
+                  {section}
+                  sheetDocument={context.document}
+                  maxRowActionsCount={rowActionInfo.maxRowActionsCount}
+                />
+              </TidyTableHeaderCell>
+            </TidyTableHeaderRow>
+          {/snippet}
+          {#snippet body()}
+            {#each section.members as member}
+              {const assignedItemId = $derived(
+                'assignedTo' in member ? member.assignedTo?.id : undefined,
+              )}
+              <TidyTableRow
+                rowContainerAttributes={{
+                  ['data-assigned-item-id']: assignedItemId,
+                  ['data-context-menu']:
+                    CONSTANTS.CONTEXT_MENU_TYPE_VEHICLE_MEMBER,
+                  ['data-uuid']: member.actor.uuid,
+                  ['data-quantity']: member.quantity,
+                }}
+                rowAttributes={{
+                  ['data-tidy-draggable']: true,
+                }}
+              >
+                <img
+                  class="item-image"
+                  alt={member.actor.name}
+                  src={member.actor.img}
+                />
+
+                <TidyTableCell primary={true} class="item-label text-cell">
+                  <a
+                    class="item-name"
+                    role="button"
+                    data-keyboard-focus
+                    tabindex="0"
+                    data-action="showDocument"
+                    data-uuid={member.actor.uuid}
+                  >
+                    <span class="cell-text">
+                      <span class="cell-name">{member.actor.name}</span>
+                      <span class="cell-context">{member.subtitle}</span>
+                    </span>
+                  </a>
+                </TidyTableCell>
+                <TidyTableCustomCells
+                  {context}
+                  ctx={member}
+                  entry={member.actor}
+                  {hiddenColumns}
+                  {section}
+                />
+
+                <!-- TODO: TypeScript cracks me up. There is a long, academic explanation about why this repetition is needed, but it would be nice to somehow eliminate the duplication one day. -->
+                {#if member.type === 'crew'}
+                  <RowActionsColumn
+                    columnWidth="{rowActionInfo.widthRems}rem"
+                    rowActions={member.rowActions}
+                    data={{
+                      actor: member.actor,
+                      ctx: member,
+                    }}
+                  />
+                {:else if member.type === 'passengers'}
+                  <RowActionsColumn
+                    columnWidth="{rowActionInfo.widthRems}rem"
+                    rowActions={member.rowActions}
+                    data={{
+                      actor: member.actor,
+                      ctx: member,
+                    }}
+                  />
+                {/if}
+              </TidyTableRow>
+            {:else}
+              {#if section.type === 'crew'}
+                {@render UnassignedNoCrewView()}
+              {:else if section.type === 'passengers'}
+                {@render UnassignedNoPassengerView()}
+              {/if}
+            {/each}
+          {/snippet}
+        </TidyTable>
+      {/if}
+    {/each}
+
+    {#snippet UnassignedNoCrewView()}
+      <div class="inventory-empty empty-state-container">
+        <button
+          type="button"
+          class="button button-tertiary"
+          data-action="browseActors"
+        >
+          <i class="fas fa-plus"></i>
+          {localize('TIDY5E.Vehicle.Unassigned.EmptyState')}
+        </button>
+      </div>
+    {/snippet}
+
+    {#snippet UnassignedNoPassengerView()}
+      <div class="inventory-empty empty-state-container">
+        <button
+          type="button"
+          class="button button-tertiary"
+          data-action="browseActors"
+        >
+          <i class="fas fa-plus"></i>
+          {localize('TIDY5E.Vehicle.Passenger.EmptyState')}
+        </button>
+      </div>
+    {/snippet}
+  </div>
+</div>

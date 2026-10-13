@@ -1,0 +1,848 @@
+import { CONSTANTS } from 'src/constants';
+import { getTidy5eActorSheetQuadroneBase } from './Tidy5eActorSheetQuadroneBase.svelte';
+import type {
+  Actor5e,
+  ActorInventoryTypes,
+  GroupAbility,
+  GroupMemberAbilityContext,
+  GroupMemberSkillContext,
+  GroupSkill,
+  GroupTrait,
+  GroupTraitBase,
+  MeasurableGroupTrait,
+  MultiActorQuadroneContext,
+  TidyItemSectionBase,
+} from 'src/types/types';
+import type {
+  ApplicationConfiguration,
+  ApplicationRenderOptions,
+} from 'src/types/application.types';
+import { Inventory } from 'src/features/sections/Inventory';
+import type { CurrencyContext, Item5e } from 'src/types/item.types';
+import { SheetSections } from 'src/features/sections/SheetSections';
+import { TidyFlags } from 'src/foundry/TidyFlags';
+import type { Group5eMember as MultiActor5eMember } from 'src/types/group.types';
+import type { DropEffectValue } from 'src/mixins/DragAndDropBaseMixin';
+import { isNil } from 'src/utils/data';
+import { mapGetOrInsertComputed } from 'src/utils/map';
+import { Tidy5eCharacterSheetQuadrone } from './Tidy5eCharacterSheetQuadrone.svelte';
+import { Tidy5eNpcSheetQuadrone } from './Tidy5eNpcSheetQuadrone.svelte';
+import type { AbilityData, SkillData } from 'src/foundry/dnd5e.types';
+import { getModifierData } from 'src/utils/formatting';
+import SectionActions from 'src/features/sections/SectionActions';
+import { FoundryAdapter } from 'src/foundry/foundry-adapter';
+import { SettingsProvider } from 'src/settings/settings.svelte';
+import { InventoryRowActionRuntime } from 'src/runtime/table-row-actions/InventoryRowActionRuntime.svelte';
+
+export function getTidy5eMultiActorSheetQuadroneBase<
+  TContext extends MultiActorQuadroneContext<any>,
+>(sheetType: string) {
+  const TidyActorSheetBase =
+    getTidy5eActorSheetQuadroneBase<TContext>(sheetType);
+
+  abstract class Tidy5eMultiActorSheetQuadroneBase extends TidyActorSheetBase {
+    static DEFAULT_OPTIONS: Partial<
+      ApplicationConfiguration & { dragDrop: Partial<DragDropConfiguration>[] }
+    > = {
+      actions: {
+        award: Tidy5eMultiActorSheetQuadroneBase.#award,
+        placeMembers: Tidy5eMultiActorSheetQuadroneBase.#placeMembers,
+        removeMember: Tidy5eMultiActorSheetQuadroneBase.#removeMember,
+      },
+    };
+
+    async _renderFrame(options: ApplicationRenderOptions) {
+      const result = await super._renderFrame(options);
+
+      this._hookSubscriptions.push({
+        name: 'updateSetting',
+        id: Hooks.on('updateSetting', (setting: any) => {
+          if (setting?.key === 'dnd5e.primaryParty') {
+            this.render();
+          }
+        }),
+      });
+
+      return result;
+    }
+
+    async _prepareContext(
+      options: ApplicationRenderOptions,
+    ): Promise<MultiActorQuadroneContext<Tidy5eMultiActorSheetQuadroneBase>> {
+      const actorContext = await super._prepareContext(options);
+
+      const currencies: CurrencyContext[] = [];
+      Object.keys(CONFIG.DND5E.currencies).forEach((key) =>
+        currencies.push({
+          key: key,
+          value: this.actor.system.currency[key] as number,
+          abbr:
+            CONFIG.DND5E.currencies[key as keyof typeof CONFIG.DND5E.currencies]
+              ?.abbreviation ?? key,
+        }),
+      );
+
+      const context: MultiActorQuadroneContext<Tidy5eMultiActorSheetQuadroneBase> =
+        {
+          currencies,
+          inventory: [],
+          ...actorContext,
+        };
+
+      // Prepare owned items
+      this._prepareItems(context);
+
+      return context;
+    }
+
+    _prepareItems(context: MultiActorQuadroneContext<any>) {
+      const items: Item5e[] = this.actor.items.filter((item: Item5e) => {
+        // Suppress riders for disabled enchantments
+        return item.dependentOrigin?.active !== false;
+      });
+
+      const inventory: ActorInventoryTypes =
+        Inventory.getDefaultInventorySections(this.document, {
+          editable: context.editable,
+          owner: context.owner,
+          unlocked: context.unlocked,
+        });
+
+      let inventoryItems = Array.from(items).reduce(
+        (inventoryItems: Item5e[], item: Item5e) => {
+          const ctx = (context.itemContext[item.id] ??= {});
+          ctx.rowActions = InventoryRowActionRuntime.getRowActions({
+            app: context.sheet,
+            data: context,
+            rowDocument: item,
+            sheetDocument: context.document,
+          });
+
+          const isWithinContainer = this.actor.items.has(item.system.container);
+
+          if (!isWithinContainer && Inventory.isItemInventoryType(item)) {
+            inventoryItems.push(item);
+          }
+
+          return inventoryItems;
+        },
+        [] as Item5e[],
+      );
+
+      const inventoryTypes = Inventory.getInventoryTypes();
+      // Organize items
+      // Section the items by type
+      for (let item of inventoryItems) {
+        const ctx = (context.itemContext[item.id] ??= {});
+        Inventory.applyInventoryItemToSection({
+          sheetDocument: this.document,
+          tabId: CONSTANTS.TAB_ACTOR_INVENTORY,
+          columnOptions: {
+            editable: context.editable,
+            owner: context.owner,
+            unlocked: context.unlocked,
+          },
+          inventory: inventory,
+          item: item,
+          defaultInventoryTypes: inventoryTypes,
+          customSectionOptions: {
+            canCreate: true,
+          },
+        });
+      }
+
+      SheetSections.getFilteredGlobalSectionsToShowWhenEmpty(
+        context.actor,
+        CONSTANTS.TAB_ACTOR_INVENTORY,
+      ).forEach((s) => {
+        inventory[s] ??= Inventory.createInventorySection(
+          this.document,
+          {
+            editable: context.editable,
+            owner: context.owner,
+            unlocked: context.unlocked,
+          },
+          CONSTANTS.TAB_ACTOR_INVENTORY,
+          s,
+          inventoryTypes,
+          {
+            canCreate: true,
+          },
+        );
+      });
+
+      context.inventory = Object.values(inventory);
+
+      context.inventory.forEach((section: TidyItemSectionBase) => {
+        section.sectionActions = SectionActions.getStandardItemHeaderActions(
+          this.actor,
+          this.actor.isOwner,
+          context.unlocked,
+          section,
+        );
+      });
+    }
+
+    getDefaultCurrencySummary(actor: Actor5e) {
+      const defaultCurrency = FoundryAdapter.getDefaultCurrencyConfig();
+
+      if (!defaultCurrency) {
+        return 0;
+      }
+
+      const currency = actor.system.currency;
+
+      const currencies = Object.entries(CONFIG.DND5E.currencies)
+        .filter(([, c]) => c.conversion)
+        .sort((a, b) => a[1].conversion - b[1].conversion);
+
+      const smallestCurrency = currencies.at(-1)?.[1];
+
+      if (!smallestCurrency) {
+        return 0;
+      }
+
+      const smallestConversion = smallestCurrency.conversion ?? 0;
+
+      let sumCurrencyInCheapestDenomination = currencies.reduce(
+        (amount, [denomination, config]) =>
+          amount +
+          currency[denomination] * (smallestConversion / config.conversion),
+        0,
+      );
+
+      const conversion = smallestCurrency.conversion;
+      const multiplier = defaultCurrency.conversion / conversion;
+      const sumCurrencyInDefaultDenomination = Math.floor(
+        sumCurrencyInCheapestDenomination * multiplier,
+      );
+
+      return sumCurrencyInDefaultDenomination;
+    }
+
+    _prepareMemberLanguages(
+      actor: any,
+      languages: Map<string, MeasurableGroupTrait<number>>,
+    ) {
+      let memberLanguages = actor.system.isCharacter
+        ? Tidy5eCharacterSheetQuadrone._getLanguageTraits(actor)
+        : actor.system.isNPC
+          ? Tidy5eNpcSheetQuadrone._getLanguageTraits(actor)
+          : [];
+
+      memberLanguages.forEach((language) => {
+        const actorLanguageTrait = {
+          label: language.label,
+          units: language.units,
+          unitsKey: language.unitsKey,
+          value: language.value !== undefined ? language.value : undefined,
+        };
+
+        const groupLanguage = mapGetOrInsertComputed(
+          languages,
+          language.label,
+          () => ({
+            identifiers: new Map<string, MeasurableGroupTrait<number>>(),
+            ...actorLanguageTrait,
+          }),
+        );
+
+        groupLanguage.identifiers.set(actor.uuid, actorLanguageTrait);
+
+        const actorLanguageUniversalValue =
+          actorLanguageTrait.value !== undefined &&
+          !isNil(actorLanguageTrait.unitsKey, '')
+            ? dnd5e.utils.convertLength(
+                actorLanguageTrait.value,
+                actorLanguageTrait.unitsKey,
+                'ft',
+              )
+            : undefined;
+
+        const groupLanguageUniversalValue =
+          groupLanguage.value !== undefined &&
+          !isNil(groupLanguage.unitsKey, '')
+            ? dnd5e.utils.convertLength(
+                groupLanguage.value,
+                groupLanguage.unitsKey,
+                'ft',
+              )
+            : undefined;
+
+        if (
+          actorLanguageUniversalValue &&
+          actorLanguageUniversalValue > (groupLanguageUniversalValue ?? 0)
+        ) {
+          groupLanguage.value = actorLanguageTrait.value;
+          groupLanguage.units = actorLanguageTrait.units;
+          groupLanguage.unitsKey = actorLanguageTrait.unitsKey;
+        }
+
+        if (!isNil(actor.system.attributes.languages?.custom, '')) {
+          dnd5e.utils
+            .splitSemicolons(actor.system.attributes.languages.custom?.trim())
+            .forEach((customLanguage: string) => {
+              const entry = mapGetOrInsertComputed(
+                languages,
+                customLanguage,
+                () => ({
+                  label: customLanguage,
+                  identifiers: new Map<string, GroupTraitBase<number>>(),
+                }),
+              );
+
+              entry?.identifiers.set(actor.uuid, { label: customLanguage });
+            });
+        }
+      });
+    }
+
+    _prepareMemberSpeeds(
+      actor: any,
+      speeds: Map<string, MeasurableGroupTrait<number>>,
+    ) {
+      let unitsKey = actor.system.attributes.movement.units;
+      let unitsConfig = CONFIG.DND5E.movementUnits[unitsKey];
+      let units = unitsConfig?.abbreviation ?? unitsKey;
+
+      Object.entries<number | unknown>(
+        actor.system.attributes.movement,
+      ).forEach(([key, speed]) => {
+        const movementType = CONFIG.DND5E.movementTypes[key];
+        if (
+          typeof speed !== 'number' ||
+          speed <= 0 ||
+          !movementType ||
+          movementType.hidden
+        ) {
+          return;
+        }
+
+        let actorSpeedTrait: GroupTraitBase<number> = {
+          label: movementType.label,
+          units: units,
+          unitsKey: unitsKey,
+          value: speed,
+        };
+
+        let groupSpeed = mapGetOrInsertComputed(speeds, key, () => ({
+          identifiers: new Map<string, MeasurableGroupTrait<number>>(),
+          ...actorSpeedTrait,
+        }));
+
+        groupSpeed.identifiers.set(actor.uuid, actorSpeedTrait);
+
+        const actorSpeedUniversalValue =
+          actorSpeedTrait.value !== undefined &&
+          !isNil(actorSpeedTrait.unitsKey, '')
+            ? dnd5e.utils.convertLength(
+                actorSpeedTrait.value,
+                actorSpeedTrait.unitsKey,
+                'ft',
+              )
+            : undefined;
+
+        const groupSpeedUniversalValue =
+          groupSpeed.value !== undefined && !isNil(groupSpeed.unitsKey, '')
+            ? dnd5e.utils.convertLength(
+                groupSpeed.value,
+                groupSpeed.unitsKey,
+                'ft',
+              )
+            : undefined;
+
+        if (
+          actorSpeedUniversalValue &&
+          actorSpeedUniversalValue > (groupSpeedUniversalValue ?? 0)
+        ) {
+          groupSpeed.value = actorSpeedTrait.value;
+          groupSpeed.units = actorSpeedTrait.units;
+          groupSpeed.unitsKey = actorSpeedTrait.unitsKey;
+        }
+      });
+    }
+
+    _prepareMemberSenses(
+      actor: any,
+      senses: Map<string, MeasurableGroupTrait<number>>,
+    ) {
+      let unitsKey = actor.system.attributes.senses.units;
+      let unitsConfig = CONFIG.DND5E.movementUnits[unitsKey];
+      let units = unitsConfig?.abbreviation ?? unitsKey;
+
+      Object.entries(actor.system.attributes.senses.ranges ?? {}).forEach(
+        ([key, sense]) => {
+          const label = CONFIG.DND5E.senses[key];
+          if (typeof sense !== 'number' || sense === 0 || !label) {
+            return;
+          }
+
+          let actorSenseTrait: GroupTraitBase<number> = {
+            label: label,
+            units: units,
+            unitsKey: unitsKey,
+            value: sense,
+          };
+
+          let groupSense = mapGetOrInsertComputed(senses, key, () => ({
+            identifiers: new Map<string, MeasurableGroupTrait<number>>(),
+            ...actorSenseTrait,
+          }));
+
+          groupSense.identifiers.set(actor.uuid, actorSenseTrait);
+
+          const actorSenseUniversalValue =
+            actorSenseTrait.value !== undefined &&
+            !isNil(actorSenseTrait.unitsKey, '')
+              ? dnd5e.utils.convertLength(
+                  actorSenseTrait.value,
+                  actorSenseTrait.unitsKey,
+                  'ft',
+                )
+              : undefined;
+
+          const groupSenseUniversalValue =
+            groupSense.value !== undefined && !isNil(groupSense.unitsKey, '')
+              ? dnd5e.utils.convertLength(
+                  groupSense.value,
+                  groupSense.unitsKey,
+                  'ft',
+                )
+              : undefined;
+
+          if (
+            actorSenseUniversalValue &&
+            actorSenseUniversalValue > (groupSenseUniversalValue ?? 0)
+          ) {
+            groupSense.value = actorSenseTrait.value;
+            groupSense.units = actorSenseTrait.units;
+            groupSense.unitsKey = actorSenseTrait.unitsKey;
+          }
+        },
+      );
+
+      if (!isNil(actor.system.attributes.senses?.special, '')) {
+        dnd5e.utils
+          .splitSemicolons(actor.system.attributes.senses.special?.trim())
+          .forEach((specialSense: string) => {
+            const entry = mapGetOrInsertComputed(senses, specialSense, () => ({
+              label: specialSense,
+              identifiers: new Map<string, GroupTraitBase<number>>(),
+            }));
+
+            entry?.identifiers.set(actor.uuid, { label: specialSense });
+          });
+      }
+    }
+
+    _prepareMemberSpecials(actor: any, specials: Map<string, GroupTrait>) {
+      ['dr', 'di', 'ci', 'dv'].forEach((type) => {
+        const custom = actor.system.traits[type]?.custom?.trim();
+        if (isNil(custom, '')) {
+          return;
+        }
+
+        dnd5e.utils.splitSemicolons(custom).forEach((customEntry: string) => {
+          const groupSpecial = mapGetOrInsertComputed(
+            specials,
+            customEntry,
+            () => ({
+              label: customEntry,
+              identifiers: new Set<string>(),
+            }),
+          );
+
+          groupSpecial.identifiers.add(actor.uuid);
+        });
+      });
+    }
+
+    _getMemberGroupAbilityMap(): Map<string, GroupAbility> {
+      return new Map<string, GroupAbility>(
+        Object.entries(CONFIG.DND5E.abilities).map<[string, GroupAbility]>(
+          ([key, ability]) => [
+            key,
+            {
+              name: ability.label,
+              key,
+              proficient: false,
+              high: {
+                total: -Infinity,
+                value: '∞',
+                sign: '-',
+              },
+              low: {
+                total: Infinity,
+                value: '∞',
+                sign: '+',
+              },
+              saveHigh: {
+                total: -Infinity,
+                value: '∞',
+                sign: '-',
+              },
+              saveLow: {
+                total: Infinity,
+                value: '∞',
+                sign: '+',
+              },
+              score: -Infinity,
+              identifiers: new Map<string, GroupMemberAbilityContext>(),
+            },
+          ],
+        ),
+      );
+    }
+
+    _getMemberGroupSkillMap(): Map<string, GroupSkill> {
+      return new Map<string, GroupSkill>(
+        Object.entries(CONFIG.DND5E.skills).map<[string, GroupSkill]>(
+          ([key, skill]) => [
+            key,
+            {
+              abilityAbbreviation: CONFIG.DND5E.abilities[skill.ability]?.abbreviation ?? skill.ability,
+              ability: skill.ability,
+              high: {
+                total: -Infinity,
+                value: '∞',
+                sign: '-',
+              },
+              low: {
+                total: Infinity,
+                value: '∞',
+                sign: '+',
+              },
+              identifiers: new Map<string, GroupMemberSkillContext>(),
+              key,
+              name: skill.label,
+              passive: -Infinity,
+              proficient: false,
+              reference: SettingsProvider.settings.referenceTooltipSkill.get()
+                ? skill.reference
+                : undefined,
+            },
+          ],
+        ),
+      );
+    }
+
+    _prepareMemberAbilities(actor: any, abilities: Map<string, GroupAbility>) {
+      Object.entries<AbilityData>(actor.system.abilities ?? {}).forEach(
+        ([key, ability]) => {
+          let groupAbility = abilities.get(key);
+
+          if (!groupAbility) {
+            return;
+          }
+
+          const modData = getModifierData(ability.mod);
+          const saveData = getModifierData(ability.save.value);
+          const scoreData = getModifierData(ability.value);
+
+          if (ability.mod > groupAbility.high.total) {
+            groupAbility.high = {
+              total: ability.mod,
+              ...modData,
+            };
+          }
+
+          if (ability.mod < groupAbility.low.total) {
+            groupAbility.low = {
+              total: ability.mod,
+              ...modData,
+            };
+          }
+
+          if (ability.save.value > groupAbility.saveHigh.total) {
+            groupAbility.saveHigh = {
+              total: ability.save.value,
+              ...saveData,
+            };
+          }
+
+          if (ability.save.value < groupAbility.saveLow.total) {
+            groupAbility.saveLow = {
+              total: ability.mod,
+              ...saveData,
+            };
+          }
+
+          groupAbility.identifiers.set(actor.uuid, {
+            mod: ability.mod,
+            modSign: modData.sign,
+            modValue: modData.value,
+            proficient: ability.proficient,
+            save: ability.save.value,
+            saveSign: saveData.sign,
+            saveValue: saveData.value,
+            score: ability.value,
+            scoreValue: scoreData.value,
+            scoreSign: scoreData.sign,
+          });
+
+          groupAbility.proficient ||= ability.proficient > 0;
+        },
+      );
+    }
+
+    _prepareMemberSkills(actor: any, skills: Map<string, GroupSkill>) {
+      Object.entries<SkillData>(actor.system.skills ?? {}).forEach(
+        ([key, skill]) => {
+          let groupSkill = skills.get(key);
+          if (!groupSkill) {
+            return;
+          }
+
+          const modData = getModifierData(skill.total);
+
+          if (skill.total > groupSkill.high.total) {
+            groupSkill.high = {
+              total: skill.total,
+              ...modData,
+            };
+          }
+
+          if (skill.total < groupSkill.low.total) {
+            groupSkill.low = {
+              total: skill.total,
+              ...modData,
+            };
+          }
+
+          groupSkill.identifiers.set(actor.uuid, {
+            total: skill.total,
+            ...modData,
+            proficient: skill.proficient,
+            passive: skill.passive,
+          });
+
+          groupSkill.proficient ||= skill.proficient > 0;
+
+          groupSkill.passive = Math.max(groupSkill.passive, skill.passive);
+        },
+      );
+    }
+
+    /* -------------------------------------------- */
+    /*  Sheet Actions                               */
+    /* -------------------------------------------- */
+
+    static async #award(
+      this: Tidy5eMultiActorSheetQuadroneBase,
+      event: Event,
+      target: HTMLElement,
+    ) {
+      this.award();
+    }
+
+    async award() {}
+
+    /* -------------------------------------------- */
+
+    /**
+     * Handle placing group members.
+     * @this {MultiActorSheet}
+     */
+    static async #placeMembers(
+      this: Tidy5eMultiActorSheetQuadroneBase,
+      _event: Event,
+      _target: HTMLElement,
+    ): Promise<void> {
+      this.document.system.placeMembers();
+    }
+
+    /* -------------------------------------------- */
+
+    static async #removeMember(
+      this: Tidy5eMultiActorSheetQuadroneBase,
+      _event: Event,
+      target: HTMLElement,
+    ): Promise<void> {
+      const member = await fromUuid(
+        target.closest<HTMLElement>('[data-uuid]')?.dataset.uuid,
+      );
+      return this.actor.system.removeMember(member);
+    }
+
+    /* -------------------------------------------- */
+    /*  Drag and Drop                               */
+    /* -------------------------------------------- */
+
+    _onDragStart(
+      event: DragEvent & { currentTarget: HTMLElement; target: HTMLElement },
+    ): void {
+      const uuid = event.currentTarget
+        .closest('[data-tidy-draggable][data-uuid]')
+        ?.getAttribute('data-uuid');
+
+      if (!uuid) {
+        super._onDragStart(event);
+        return;
+      }
+
+      const actor = this.#findMemberActor(uuid);
+
+      if (!actor) {
+        return;
+      }
+
+      const dragData = actor.toDragData();
+      dragData['groupId'] = this.actor.id;
+      event.dataTransfer?.setData('text/plain', JSON.stringify(dragData));
+    }
+
+    async _onDropActiveEffect(
+      ..._args: any[]
+    ): Promise</*ActiveEffect*/ unknown | boolean> {
+      // Tidy Multi-Actor Sheets do not support active effect drops.
+      return false;
+    }
+
+    async _onDropActor(
+      event: DragEvent & { currentTarget: HTMLElement; target: HTMLElement },
+      data: Actor5e,
+    ): Promise<object | boolean | undefined> {
+      if (!this.isEditable) {
+        return false;
+      }
+
+      const cls = getDocumentClass(CONSTANTS.DOCUMENT_NAME_ACTOR);
+      const sourceActor = await cls.fromDropData(data);
+      if (!sourceActor) {
+        return;
+      }
+
+      const dragEventData =
+        foundry.applications.ux.TextEditor.getDragEventData(event);
+      const groupId = dragEventData['groupId'];
+
+      if (groupId !== this.actor.id) {
+        return this.actor.system.addMember(sourceActor);
+      }
+
+      const dropTarget = event.target?.closest<HTMLElement>(
+        '[data-tidy-draggable][data-uuid]',
+      );
+      const targetMemberUuid = dropTarget?.getAttribute('data-uuid');
+
+      const targetMemberActor = this.#findMemberActor(targetMemberUuid);
+
+      if (
+        !dropTarget ||
+        !targetMemberActor ||
+        targetMemberUuid === sourceActor.uuid
+      ) {
+        return false;
+      }
+
+      // Section Transfer
+      const sections = TidyFlags.sections.get(this.actor);
+      const sourceSection = sections[sourceActor.id] ?? null;
+      const targetSection = sections[targetMemberActor.id] ?? null;
+
+      if (sourceSection !== targetSection) {
+        sections[sourceActor.id] = targetSection;
+        await this.actor.update({
+          [`${TidyFlags.sections.prop}.${sourceActor.id}`]: targetSection,
+        });
+      }
+
+      // Member Sorting
+      return await this._onSortMember(sourceActor, targetMemberActor);
+    }
+
+    #findMemberActor(uuid: string | null | undefined): Actor5e | undefined {
+      return this.actor.system.members.find(
+        (m: MultiActor5eMember) => m.actor.uuid === uuid,
+      )?.actor;
+    }
+
+    async _onSortMember(sourceActor: Actor5e, targetActor: Actor5e) {
+      const membersCollection: MultiActor5eMember[] =
+        this.actor.system.toObject().members;
+      const sourceIndex = membersCollection.findIndex(
+        (m) => m.actor === sourceActor.id,
+      );
+      const targetIndex = membersCollection.findIndex(
+        (m) => m.actor === targetActor.id,
+      );
+
+      const sortBefore = sourceIndex > targetIndex;
+
+      if (sortBefore) {
+        const sourceMember = membersCollection.splice(sourceIndex, 1)[0];
+        membersCollection.splice(targetIndex, 0, sourceMember);
+      } else {
+        const sourceMember = membersCollection[sourceIndex];
+        membersCollection.splice(targetIndex + 1, 0, sourceMember);
+        membersCollection.splice(sourceIndex, 1);
+      }
+
+      return await this.actor.update({ 'system.members': membersCollection });
+    }
+
+    async _onDropFolder(
+      event: DragEvent & { currentTarget: HTMLElement; target: HTMLElement },
+      data: Record<string, any>,
+    ) {
+      if (!this.isEditable) {
+        return false;
+      }
+
+      const folder = await Folder.implementation.fromDropData(data);
+
+      if (folder.type === CONSTANTS.DOCUMENT_NAME_ACTOR) {
+        const results: any[] = [];
+        for (let actor of folder.contents) {
+          results.push(await this.actor.system.addMember(actor));
+        }
+        return results;
+      }
+
+      return await super._onDropFolder(event, data);
+    }
+
+    /** @inheritDoc */
+    async _onDropItem(
+      event: DragEvent & { currentTarget: HTMLElement; target: HTMLElement },
+      item: Item5e,
+    ) {
+      const { uuid } =
+        event.target.closest<HTMLElement>('[data-uuid]')?.dataset ?? {};
+      const target = await fromUuid(uuid);
+
+      if (target instanceof foundry.documents.Actor) {
+        return target.sheet._onDropCreateItems(event, [item]);
+      }
+
+      return super._onDropItem(event, item);
+    }
+
+    /** @inheritDoc */
+    async _onDropCreateItems(
+      event: DragEvent,
+      items: Item5e[],
+      behavior?: DropEffectValue | null,
+    ) {
+      let foundNonPhysical = false;
+      items = items.filter((item) => {
+        if (
+          !item.system.constructor._schemaTemplates?.includes(
+            dnd5e.dataModels.item.PhysicalItemTemplate,
+          )
+        ) {
+          foundNonPhysical = true;
+          return false;
+        }
+        return true;
+      });
+      if (foundNonPhysical)
+        ui.notifications.warn('DND5E.Group.Warning.PhysicalItemOnly', {
+          localize: true,
+        });
+      return super._onDropCreateItems(event, items, behavior);
+    }
+  }
+
+  return Tidy5eMultiActorSheetQuadroneBase;
+}

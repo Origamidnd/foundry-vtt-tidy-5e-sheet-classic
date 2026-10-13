@@ -1,0 +1,73 @@
+<script lang="ts">
+  import { CONSTANTS } from 'src/constants';
+  import type { ItemFavoriteContextEntry } from 'src/types/types';
+  import FavoriteRollButton from './parts/FavoriteRollButton.svelte';
+  import FavoriteItemUses from './parts/FavoriteItemUses.svelte';
+  import { FoundryAdapter } from 'src/foundry/foundry-adapter';
+  import { getCharacterSheetQuadroneContext } from 'src/sheets/sheet-context.svelte';
+  import { ItemUtils } from 'src/utils/ItemUtils';
+
+  interface Props {
+    favorite: ItemFavoriteContextEntry;
+  }
+
+  let { favorite }: Props = $props();
+  const localize = FoundryAdapter.localize;
+  const context = $derived(getCharacterSheetQuadroneContext());
+  const unidentified = $derived(ItemUtils.isUnidentified(favorite.item));
+  const concealed = $derived(
+    ItemUtils.isConcealed(favorite.item, { unlocked: context.unlocked }),
+  );
+
+  let quantity = $derived(favorite.item.system.quantity);
+
+  let subtitle = $derived(
+    [
+      favorite.item.system.type.label,
+      favorite.item.labels.activation,
+      !concealed && quantity > 1 ? `&times;${quantity}` : null,
+    ].filterJoin(` <div class="divider-dot"></div> `),
+  );
+
+  let uses = $derived(
+    favorite.item.system.hasLimitedUses
+      ? favorite.item.system.getUsesData()
+      : null,
+  );
+</script>
+
+<div
+  class="list-entry favorite {unidentified ? 'diminished' : ''}"
+  data-favorite-type="consumable"
+  data-context-menu={CONSTANTS.CONTEXT_MENU_TYPE_ITEMS}
+  data-item-id={favorite.item?.id}
+  data-favorite-id={favorite.id}
+  data-tidy-draggable
+  data-tidy-sheet-part="favorite-entry"
+>
+  <FavoriteRollButton
+    img={favorite.item.img}
+    title={favorite.item.name}
+    data-action="use"
+    name={favorite.item.name}
+    {subtitle}
+  />
+  {#if uses?.max || quantity}
+    <div class="">
+      <span class="primary">
+        {#if uses?.max}
+          <FavoriteItemUses {favorite} {uses} />
+        {:else if concealed}
+          <span class="value color-text-lightest">{localize('TIDY5E.Table.UnidentifiedPlaceholder')}</span>
+        {:else}
+          <span class="sign font-default-medium color-text-lighter"
+            >&times;</span
+          >
+          <span class="value font-data-medium color-text-default"
+            >{quantity}</span
+          >
+        {/if}
+      </span>
+    </div>
+  {/if}
+</div>

@@ -1,0 +1,1531 @@
+import { CONSTANTS } from 'src/constants';
+import type {
+  ApplicationConfiguration,
+  ApplicationRenderOptions,
+} from 'src/types/application.types';
+import type {
+  Actor5e,
+  ActorInventoryTypes,
+  ActorSheetQuadroneContext,
+  VehicleCrewMemberContext,
+  VehicleDraftAnimalContext,
+  VehicleDraftAnimalSection,
+  InventorySection,
+  VehiclePassengerMemberContext,
+  TravelPaceConfigEntry,
+  TravelSpeedConfigEntry,
+  VehicleItemQuadroneContext,
+  VehicleSheetQuadroneContext,
+  FeatureSection,
+  SpellbookSection,
+} from 'src/types/types';
+import VehicleSheet from './actor/VehicleSheet.svelte';
+import { mount } from 'svelte';
+import { initTidy5eContextMenu } from 'src/context-menu/tidy5e-context-menu';
+import { getTidy5eActorSheetQuadroneBase } from './Tidy5eActorSheetQuadroneBase.svelte';
+import { VehicleSheetQuadroneRuntime } from 'src/runtime/actor/VehicleSheetQuadroneRuntime.svelte';
+import { ItemContext } from 'src/features/item/ItemContext';
+import { ConditionsAndEffects } from 'src/features/conditions-and-effects/ConditionsAndEffects';
+import { UserSheetPreferencesService } from 'src/features/user-preferences/SheetPreferencesService';
+import UserPreferencesService from 'src/features/user-preferences/UserPreferencesService';
+import { Inventory } from 'src/features/sections/Inventory';
+import type { CurrencyContext, Item5e } from 'src/types/item.types';
+import { actorUsesActionFeature } from 'src/features/actions/actions.svelte';
+import { FoundryAdapter } from 'src/foundry/foundry-adapter';
+import { SheetSections } from 'src/features/sections/SheetSections';
+import SectionActions from 'src/features/sections/SectionActions';
+import type { CrewArea5e } from 'src/foundry/foundry.types';
+import { isNil } from 'src/utils/data';
+import { InventoryRowActionRuntime } from 'src/runtime/table-row-actions/InventoryRowActionRuntime.svelte';
+import { FeatureRowActionRuntime } from 'src/runtime/table-row-actions/FeatureRowActionRuntime.svelte';
+import { SpellRowActionRuntime } from 'src/runtime/table-row-actions/SpellRowActionRuntime.svelte';
+import { DraftAnimalMemberRowActionRuntime } from 'src/runtime/table-row-actions/DraftAnimalRowActions.svelte';
+import { PassengerRowActionRuntime } from 'src/runtime/table-row-actions/PassengerRowActionRuntime.svelte';
+import { UnassignedCrewMemberRowActionRuntime } from 'src/runtime/table-row-actions/UnassignedCrewRowActionRuntime.svelte';
+import { AssignedCrewMemberRowActionRuntime } from 'src/runtime/table-row-actions/AssignedCrewRowActionRuntime.svelte';
+import { FeatureColumnRuntime } from 'src/runtime/table-columns/FeatureColumnRuntime';
+import { SpellColumnRuntime } from 'src/runtime/table-columns/SpellColumnRuntime';
+import { InventoryColumnRuntime } from 'src/runtime/table-columns/InventoryColumnRuntime';
+import { VehicleAssignedCrewColumnRuntime } from 'src/runtime/table-columns/VehicleAssignedCrewColumnRuntime';
+import { VehicleUnassignedCrewColumnRuntime } from 'src/runtime/table-columns/VehicleUnassignedCrewColumnRuntime';
+import { VehiclePassengerColumnRuntime } from 'src/runtime/table-columns/VehiclePassengerColumnRuntime';
+import { VehicleDraftAnimalColumnRuntime } from 'src/runtime/table-columns/VehicleDraftAnimalColumnRuntime';
+import { TidyFlags } from 'src/foundry/TidyFlags';
+import * as VehicleCrew from 'src/features/vehicle/VehicleCrew';
+
+const localize = FoundryAdapter.localize;
+
+export class Tidy5eVehicleSheetQuadrone extends getTidy5eActorSheetQuadroneBase<VehicleSheetQuadroneContext>(
+  CONSTANTS.SHEET_TYPE_VEHICLE,
+) {
+  currentTabId: string;
+  aggregatePinTab = {
+    tabId: CONSTANTS.TAB_STATBLOCK,
+    tabName: 'TIDY5E.StatblockTabName',
+  };
+  constructor(options?: Partial<ApplicationConfiguration> | undefined) {
+    super(options);
+    this.currentTabId = CONSTANTS.TAB_VEHICLE_ATTRIBUTES;
+  }
+
+  static DEFAULT_OPTIONS: Partial<
+    ApplicationConfiguration & { dragDrop: Partial<DragDropConfiguration>[] }
+  > = {
+    position: {
+      width: 740,
+      height: 810,
+    },
+    actions: {
+      adjustCrew: Tidy5eVehicleSheetQuadrone.#adjustCrew,
+      browseActors: Tidy5eVehicleSheetQuadrone.#browseActors,
+      removeBrokenLinks: Tidy5eVehicleSheetQuadrone.#removeBrokenLinks,
+      removeDraftAnimal: Tidy5eVehicleSheetQuadrone.#removeDraftAnimal,
+      removePassengers: Tidy5eVehicleSheetQuadrone.#removePassengers,
+      removeUnassignedCrew: Tidy5eVehicleSheetQuadrone.#removeUnassignedCrew,
+      unassignCrew: Tidy5eVehicleSheetQuadrone.#unassignCrew,
+    },
+  };
+
+  async browseAssignActor(item: Item5e, replaceUuid?: string) {
+    const newCrewmateUuid = await this.browseActors();
+
+    const actor = await fromUuid(newCrewmateUuid);
+
+    if (!actor) {
+      return;
+    }
+
+    if (replaceUuid) {
+      await VehicleCrew.replaceCrewMember(item, replaceUuid, newCrewmateUuid);
+      return;
+    }
+
+    await this._assignCrew(newCrewmateUuid, item);
+  }
+
+  browseActors(): Promise<Actor5e | undefined> {
+    return dnd5e.applications.CompendiumBrowser.selectOne(
+      {
+        filters: {
+          locked: {
+            documentClass: 'Actor',
+            types: new Set(['npc']),
+          },
+        },
+        // Have to specify a tab now, otherwise it defaults to items and fails.
+        tab: 'monsters',
+      },
+      this._detachOptions(),
+    );
+  }
+
+  async browseAddActor(area: CrewArea5e) {
+    const result = await this.browseActors();
+
+    if (!result) {
+      return;
+    }
+
+    const actor = await fromUuid(result);
+
+    if (!actor) {
+      return;
+    }
+
+    await this._onAdjustCrew(actor, area);
+
+    return actor;
+  }
+
+  _createComponent(node: HTMLElement): Record<string, any> {
+    if (this.actor.limited) {
+      return this._createLimitedViewComponent(node);
+    }
+
+    const component = mount(VehicleSheet, {
+      target: node,
+      context: new Map<any, any>(this._getActorSvelteContext()),
+    });
+
+    initTidy5eContextMenu(this, this.element, CONSTANTS.SHEET_LAYOUT_QUADRONE);
+
+    return component;
+  }
+
+  async _prepareContext(
+    options?: ApplicationRenderOptions,
+  ): Promise<VehicleSheetQuadroneContext> {
+    if (options?.tidy?.soft && this._context?.data) {
+      return this._context.data;
+    }
+
+    const actorContext = (await super._prepareContext(
+      options,
+    )) as ActorSheetQuadroneContext;
+
+    // Effects & Conditions
+    let baseEffects =
+      dnd5e.applications.components.EffectsElement.prepareCategories(
+        this.actor.allApplicableEffects(),
+      );
+    let { conditions, effects: enhancedEffectSections } =
+      await ConditionsAndEffects.getConditionsAndEffectsForActorQuadrone(
+        actorContext,
+        this.object,
+        baseEffects,
+      );
+
+    const preferences = UserSheetPreferencesService.getByType(this.actor.type);
+
+    const userPreferences = UserPreferencesService.get();
+
+    const currencies: CurrencyContext[] = [];
+    Object.keys(CONFIG.DND5E.currencies).forEach((key) =>
+      currencies.push({
+        key: key,
+        value: this.actor.system.currency[key] as number,
+        abbr:
+          CONFIG.DND5E.currencies[key as keyof typeof CONFIG.DND5E.currencies]
+            ?.abbreviation ?? key,
+      }),
+    );
+
+    const paces: TravelPaceConfigEntry[] = Object.entries(
+      CONFIG.DND5E.travelPace,
+    )
+      .toSorted((a, b) => a[1].multiplier - b[1].multiplier)
+      .map(([key, config], index) => ({ key, config, index }));
+
+    const currentPace =
+      paces.find(
+        (pace) => pace.key === this.actor.system.attributes.travel.pace,
+      ) ?? paces[0];
+
+    const enrichmentArgs = {
+      secrets: this.actor.isOwner,
+      rollData: actorContext.rollData,
+      relativeTo: this.actor,
+    };
+
+    const assignedCrewSection = {
+      ...SheetSections.EMPTY,
+      type: CONSTANTS.SECTION_TYPE_CREW,
+      label: 'TIDY5E.Vehicle.Section.Crew.Assigned.Label',
+      members: [],
+      key: CONSTANTS.SECTION_KEY_ASSIGNED,
+      columns: VehicleAssignedCrewColumnRuntime.getColumnSpecifications({
+        sheetDocument: this.document,
+        tabId: CONSTANTS.TAB_VEHICLE_CREW_AND_PASSENGERS,
+        sectionKey: CONSTANTS.SECTION_KEY_ASSIGNED,
+        editable: actorContext.editable,
+        owner: actorContext.owner,
+        unlocked: actorContext.unlocked,
+      }),
+      showCount: true,
+      showEmptyState: false,
+      sectionActions: SectionActions.getVehicleMemberHeaderActions(
+        CONSTANTS.SECTION_TYPE_CREW,
+      ),
+    };
+
+    const unassignedCrewSection = {
+      ...SheetSections.EMPTY,
+      type: CONSTANTS.SECTION_TYPE_CREW,
+      label: 'TIDY5E.Vehicle.Section.Crew.Unassigned.Label',
+      members: [],
+      key: CONSTANTS.SECTION_KEY_UNASSIGNED,
+      columns: VehicleUnassignedCrewColumnRuntime.getColumnSpecifications({
+        sheetDocument: this.document,
+        tabId: CONSTANTS.TAB_VEHICLE_CREW_AND_PASSENGERS,
+        sectionKey: CONSTANTS.SECTION_KEY_UNASSIGNED,
+        editable: actorContext.editable,
+        owner: actorContext.owner,
+        unlocked: actorContext.unlocked,
+      }),
+      showCount: false,
+      showEmptyState: true,
+      sectionActions: SectionActions.getVehicleMemberHeaderActions(
+        CONSTANTS.SECTION_TYPE_CREW,
+      ),
+    };
+
+    const passengerSection = {
+      ...SheetSections.EMPTY,
+      type: CONSTANTS.SECTION_TYPE_PASSENGERS,
+      label: 'DND5E.VEHICLE.Crew.Passengers',
+      members: [],
+      key: CONSTANTS.SECTION_KEY_PASSENGERS,
+      columns: VehiclePassengerColumnRuntime.getColumnSpecifications({
+        sheetDocument: this.document,
+        tabId: CONSTANTS.TAB_VEHICLE_CREW_AND_PASSENGERS,
+        sectionKey: CONSTANTS.SECTION_KEY_PASSENGERS,
+        editable: actorContext.editable,
+        owner: actorContext.owner,
+        unlocked: actorContext.unlocked,
+      }),
+      showCount: true,
+      showEmptyState: true,
+      sectionActions: SectionActions.getVehicleMemberHeaderActions(
+        CONSTANTS.SECTION_TYPE_PASSENGERS,
+      ),
+    };
+
+    const context: VehicleSheetQuadroneContext = {
+      abilities: this._prepareAbilities(actorContext),
+      inventory: [],
+      conditions: conditions,
+      cost: {
+        value: this.actor.system.attributes.price?.value ?? 0,
+        denomination:
+          CONFIG.DND5E.currencies[
+            this.actor.system.attributes.price?.denomination
+          ]?.abbreviation ??
+          this.actor.system.attributes.price?.denomination ??
+          actorContext.defaultCurrency.key,
+      },
+      crewAndPassengers: [
+        unassignedCrewSection,
+        assignedCrewSection,
+        passengerSection,
+      ],
+      crew: {
+        assigned: assignedCrewSection,
+        unassigned: unassignedCrewSection,
+      },
+      crewBrokenLinks: [],
+      draftBrokenLinks: [],
+      currencies,
+      effects: enhancedEffectSections,
+      encumbrance: await this.actor.system.getEncumbrance(),
+      enriched: {
+        biography: await foundry.applications.ux.TextEditor.enrichHTML(
+          this.actor.system.details.biography.value,
+          enrichmentArgs,
+        ),
+      },
+      features: [],
+      mountableItems: {},
+      passengers: passengerSection,
+      passengerBrokenLinks: [],
+      quality: this.actor.system.attributes.quality?.value ?? 0,
+      size: {
+        key: this.actor.system.traits.size,
+        label:
+          CONFIG.DND5E.actorSizes[this.actor.system.traits.size]?.label ??
+          this.actor.system.traits.size,
+        abbr:
+          CONFIG.DND5E.actorSizes[this.actor.system.traits.size]
+            ?.abbreviation ?? '—',
+        mod: this.actor.system.attributes.encumbrance.mod,
+      },
+      speeds: super._getMovementSpeeds(),
+      statblock: [],
+      traits: this._prepareTraits(),
+      travelSpeeds: this._prepareTravelSpeeds(),
+      type: CONSTANTS.SHEET_TYPE_VEHICLE,
+      utilities: {},
+      ...actorContext,
+      spellComponentLabels: FoundryAdapter.getSpellComponentLabels(),
+    };
+
+    context.useActionsFeature = actorUsesActionFeature(this.actor);
+
+    await this._prepareItems(context);
+
+    await this._prepareDraftAnimals(context);
+
+    await this._prepareCrew(context);
+
+    await this._preparePassengers(context);
+
+    // Section Actions
+
+    context.statblock.forEach((section) => {
+      if (section.type !== CONSTANTS.SECTION_TYPE_DRAFT_ANIMALS) {
+        section.sectionActions = SectionActions.getStandardItemHeaderActions(
+          this.actor,
+          this.actor.isOwner,
+          context.unlocked,
+          section,
+        );
+      } else {
+        section.sectionActions = SectionActions.getVehicleMemberHeaderActions(
+          CONSTANTS.SECTION_TYPE_DRAFT_ANIMALS,
+        );
+      }
+    });
+
+    context.inventory.forEach((section) => {
+      section.sectionActions = SectionActions.getStandardItemHeaderActions(
+        this.actor,
+        this.actor.isOwner,
+        context.unlocked,
+        section,
+      );
+    });
+
+    // Custom content
+    context.customContent =
+      await VehicleSheetQuadroneRuntime.getContent(context);
+
+    // Runtime Tabs
+    context.tabs = await VehicleSheetQuadroneRuntime.getTabs(context);
+
+    return context;
+  }
+
+  private async _prepareDraftAnimals(context: VehicleSheetQuadroneContext) {
+    const drafted: VehicleDraftAnimalSection = {
+      ...SheetSections.EMPTY,
+      type: 'draft',
+      key: 'draft',
+      label: 'TIDY5E.Vehicle.Member.DraftAnimal.LabelPl',
+      members: [],
+      columns: VehicleDraftAnimalColumnRuntime.getColumnSpecifications({
+        sheetDocument: this.document,
+        tabId: CONSTANTS.TAB_STATBLOCK,
+        sectionKey: 'draft',
+        editable: context.editable,
+        owner: context.owner,
+        unlocked: context.unlocked,
+      }),
+    };
+
+    const members = await Promise.all(
+      (this.actor.system.draft.value as string[]).map(async (uuid: string) => {
+        const actor = await fromUuid(uuid);
+
+        if (!actor) {
+          return { uuid };
+        }
+
+        return {
+          uuid,
+          value: {
+            actor,
+            subtitle: this._getSubtitle(actor),
+            quantity: 1,
+            name: actor.name,
+            rowActions: DraftAnimalMemberRowActionRuntime.getRowActions({
+              app: context.sheet,
+              data: context,
+              rowDocument: actor,
+              sheetDocument: context.document,
+            }),
+          } satisfies VehicleDraftAnimalContext,
+        };
+      }),
+    );
+
+    for (const member of members) {
+      if (member.value) {
+        drafted.members.push(member.value);
+      } else {
+        context.draftBrokenLinks.push(member.uuid);
+      }
+    }
+
+    context.statblock.push(drafted);
+  }
+
+  private async _prepareCrew(context: VehicleSheetQuadroneContext) {
+    if (!context.system.crew.value.length) {
+      return;
+    }
+    const crew = this.groupCrew(context.system.crew.value);
+    const unassigned = { ...crew };
+    const vehicleItems = context.items.filter((i) => i.system.isMountable);
+
+    const assignments: Record<string, Item5e[]> = {};
+    const assigned: Record<string, number> = {};
+
+    for (const item of vehicleItems) {
+      for (const uuid of item.system.crew.value) {
+        const max = crew[uuid];
+        if (!max) {
+          continue;
+        }
+        assigned[uuid] ??= 0;
+        assigned[uuid]++;
+        unassigned[uuid]--;
+
+        assignments[uuid] ??= [];
+        assignments[uuid].push(item);
+      }
+    }
+
+    const { value: assignedCrewContextValue, broken: brokenAssignedCrewUuids } =
+      await this.resolveCrewMemberContext(context, assigned, assignments);
+    context.crew.assigned.members = assignedCrewContextValue;
+
+    const {
+      value: unassignedCrewContextValue,
+      broken: brokenUnassignedCrewUuids,
+    } = await this.resolveCrewMemberContext(context, unassigned);
+    context.crew.unassigned.members = unassignedCrewContextValue;
+
+    // Add the actual number of broken passengers, even if duplicate actor UUIDs.
+    if (brokenAssignedCrewUuids.length || brokenUnassignedCrewUuids.length) {
+      for (const uuid of [
+        ...brokenAssignedCrewUuids,
+        ...brokenUnassignedCrewUuids,
+      ]) {
+        for (let i = 0; i < (crew[uuid] ?? 0); i++) {
+          context.crewBrokenLinks.push(uuid);
+        }
+      }
+    }
+  }
+
+  private async _preparePassengers(context: VehicleSheetQuadroneContext) {
+    const uuids: string[] = context.system.passengers.value;
+    const groups = this.groupCrew(uuids);
+
+    const passengerResult = await Promise.all(
+      Object.keys(groups).map(async (uuid) => {
+        const actor = await fromUuid(uuid);
+
+        if (!actor) {
+          return { uuid };
+        }
+
+        const value = {
+          type: 'passengers',
+          actor,
+          subtitle: this._getSubtitle(actor),
+          quantity: groups[uuid],
+          rowActions: PassengerRowActionRuntime.getRowActions({
+            app: context.sheet,
+            data: context,
+            rowDocument: actor,
+            sheetDocument: context.document,
+          }),
+        } satisfies VehiclePassengerMemberContext;
+
+        return {
+          uuid,
+          value,
+        };
+      }),
+    );
+
+    for (const passenger of passengerResult) {
+      if (passenger.value) {
+        context.passengers.members.push(passenger.value);
+      } else {
+        // Add the actual number of broken passengers, even if duplicate actor UUIDs.
+        for (let i = 0; i < (groups[passenger.uuid] ?? 0); i++) {
+          context.passengerBrokenLinks.push(passenger.uuid);
+        }
+      }
+    }
+  }
+
+  async _prepareItems(context: VehicleSheetQuadroneContext): Promise<void> {
+    const mountables: Record<string, InventorySection> = {
+      [CONSTANTS.ITEM_TYPE_WEAPON]: {
+        type: CONSTANTS.SECTION_TYPE_INVENTORY,
+        items: [],
+        canCreate: true,
+        label: 'TYPES.Item.weaponPl',
+        dataset: {
+          ['type']: CONSTANTS.ITEM_TYPE_WEAPON,
+          ['system.type.value']: CONSTANTS.ITEM_SUBTYPE_SIEGE_WEAPON,
+        },
+        key: CONSTANTS.ITEM_TYPE_WEAPON,
+        sectionActions: [],
+        show: true,
+        columns: InventoryColumnRuntime.getColumnSpecifications({
+          sheetDocument: this.document,
+          tabId: CONSTANTS.TAB_STATBLOCK,
+          sectionKey: CONSTANTS.ITEM_TYPE_WEAPON,
+          editable: context.editable,
+          owner: context.owner,
+          unlocked: context.unlocked,
+        }),
+      },
+      [CONSTANTS.ITEM_TYPE_EQUIPMENT]: {
+        type: CONSTANTS.SECTION_TYPE_INVENTORY,
+        items: [],
+        canCreate: true,
+        label: 'TYPES.Item.equipmentPl',
+        dataset: {
+          ['type']: CONSTANTS.ITEM_TYPE_EQUIPMENT,
+          ['system.type.value']: CONSTANTS.ITEM_SUBTYPE_VEHICLE_EQUIPMENT,
+        },
+        key: CONSTANTS.ITEM_TYPE_EQUIPMENT,
+        sectionActions: [],
+        show: true,
+        columns: InventoryColumnRuntime.getColumnSpecifications({
+          sheetDocument: this.document,
+          tabId: CONSTANTS.TAB_STATBLOCK,
+          sectionKey: CONSTANTS.ITEM_TYPE_EQUIPMENT,
+          editable: context.editable,
+          owner: context.owner,
+          unlocked: context.unlocked,
+        }),
+      },
+    };
+
+    const createFeatureSection = (
+      key: string,
+      label: string,
+      isCustom?: boolean,
+    ) => {
+      const section: FeatureSection = {
+        type: CONSTANTS.SECTION_TYPE_FEATURE,
+        items: [],
+        canCreate: true,
+        label,
+        dataset: {
+          ['type']: key,
+        },
+        key,
+        sectionActions: [],
+        show: true,
+        columns: FeatureColumnRuntime.getColumnSpecifications({
+          sheetDocument: this.document,
+          tabId: CONSTANTS.TAB_STATBLOCK,
+          sectionKey: CONSTANTS.ITEM_TYPE_FEAT,
+          editable: context.editable,
+          owner: context.owner,
+          unlocked: context.unlocked,
+        }),
+        custom: isCustom
+          ? {
+              section: key,
+              creationItemTypes: [],
+            }
+          : undefined,
+      };
+
+      return section;
+    };
+
+    const features: Record<string, FeatureSection> = {
+      [CONSTANTS.ITEM_TYPE_FEAT]: createFeatureSection(
+        CONSTANTS.ITEM_TYPE_FEAT,
+        'DND5E.Features',
+      ),
+    };
+
+    const spells: Record<string, SpellbookSection> = {
+      [CONSTANTS.ITEM_TYPE_SPELL]: {
+        type: CONSTANTS.SECTION_TYPE_SPELLBOOK,
+        items: [],
+        canCreate: false,
+        label: 'TYPES.Item.spellPl',
+        dataset: {},
+        key: CONSTANTS.ITEM_TYPE_SPELL,
+        sectionActions: [],
+        show: true,
+        columns: SpellColumnRuntime.getColumnSpecifications({
+          sheetDocument: this.document,
+          tabId: CONSTANTS.TAB_STATBLOCK,
+          sectionKey: CONSTANTS.ITEM_TYPE_SPELL,
+          editable: context.editable,
+          owner: context.owner,
+          unlocked: context.unlocked,
+        }),
+        canPrepare: false,
+        usesSlots: false,
+        slot: '',
+        method: '',
+      },
+    };
+
+    const inventory: ActorInventoryTypes =
+      Inventory.getDefaultInventorySections(this.document, {
+        editable: context.editable,
+        owner: context.owner,
+        unlocked: context.unlocked,
+      });
+
+    const inventoryTypes = Inventory.getInventoryTypes();
+
+    const statblockTypes = [
+      CONSTANTS.ITEM_TYPE_FEAT,
+      CONSTANTS.ITEM_TYPE_SPELL,
+      CONSTANTS.ITEM_TYPE_WEAPON,
+      CONSTANTS.ITEM_TYPE_EQUIPMENT,
+    ];
+
+    for (const item of context.items) {
+      const ctx = (context.itemContext[item.id] ??= {});
+      await this._prepareItem(item, ctx, context);
+
+      const itemIsInventoryType = Inventory.isItemInventoryType(item);
+
+      // partition to section
+      if (itemIsInventoryType && !item.system.isMountable) {
+        ctx.rowActions = InventoryRowActionRuntime.getRowActions({
+          app: context.sheet,
+          data: context,
+          rowDocument: item,
+          sheetDocument: context.document,
+        });
+
+        // Cargo
+        Inventory.applyInventoryItemToSection({
+          sheetDocument: this.document,
+          tabId: CONSTANTS.TAB_ACTOR_INVENTORY,
+          columnOptions: {
+            editable: context.editable,
+            owner: context.owner,
+            unlocked: context.unlocked,
+          },
+          inventory: inventory,
+          item: item,
+          defaultInventoryTypes: inventoryTypes,
+          customSectionOptions: {
+            canCreate: true,
+          },
+        });
+      } else if (
+        item.type === CONSTANTS.ITEM_TYPE_SPELL &&
+        item.system.linkedActivity
+      ) {
+        ctx.rowActions = SpellRowActionRuntime.getRowActions({
+          app: context.sheet,
+          data: context,
+          rowDocument: item,
+          sheetDocument: context.document,
+        });
+
+        if (TidyFlags.section.get(item)) {
+          SheetSections.applySpellToSection(
+            context,
+            CONSTANTS.TAB_STATBLOCK,
+            spells,
+            item,
+            { canPrepare: false, canCreate: false },
+          );
+        } else {
+          spells[CONSTANTS.ITEM_TYPE_SPELL].items.push(item);
+        }
+      } else if (itemIsInventoryType) {
+        ctx.rowActions = InventoryRowActionRuntime.getRowActions({
+          app: context.sheet,
+          data: context,
+          rowDocument: item,
+          sheetDocument: context.document,
+        });
+
+        Inventory.applyInventoryItemToSection({
+          sheetDocument: this.document,
+          columnOptions: {
+            editable: context.editable,
+            owner: context.owner,
+            unlocked: context.unlocked,
+          },
+          tabId: CONSTANTS.TAB_STATBLOCK,
+          inventory: mountables,
+          item: item,
+          defaultInventoryTypes: statblockTypes,
+          customSectionOptions: {
+            canCreate: false,
+          },
+        });
+      } else if (item.type === CONSTANTS.ITEM_TYPE_FEAT) {
+        ctx.rowActions = FeatureRowActionRuntime.getRowActions({
+          app: context.sheet,
+          data: context,
+          rowDocument: item,
+          sheetDocument: context.document,
+        });
+
+        const customSectionName = TidyFlags.section.get(item);
+
+        if (!customSectionName) {
+          features[CONSTANTS.ITEM_TYPE_FEAT].items.push(item);
+          continue;
+        }
+
+        const section = (features[customSectionName] ??= createFeatureSection(
+          customSectionName,
+          customSectionName,
+          true,
+        ));
+
+        section.items.push(item);
+      }
+    }
+
+    const mountableSections = Object.values(mountables);
+    const spellSections = Object.values(spells);
+    const featureSections = Object.values(features);
+
+    let statblockSections = [
+      ...featureSections,
+      ...spellSections,
+      ...mountableSections,
+    ];
+
+    // Track which sections exist
+    let sectionsMap: Record<
+      string,
+      InventorySection | SpellbookSection | FeatureSection
+    > = {};
+
+    // Consolidate shared sections into generic feature sections
+    for (const section of statblockSections) {
+      const mappedSection = sectionsMap[section.key];
+
+      // Apply new section to map
+      if (!mappedSection) {
+        sectionsMap[section.key] = section;
+        continue;
+      }
+
+      const incomingItems = section.items;
+
+      // Shared section detected; non-feature shared sections are overwritten
+      // to be feature sections and now contain their items and incoming items
+      if (mappedSection.type !== CONSTANTS.SECTION_TYPE_FEATURE) {
+        const mappedItems = mappedSection.items;
+
+        const newSharedSection = createFeatureSection(
+          section.key,
+          section.label,
+          !isNil(section.custom?.section),
+        );
+        sectionsMap[section.key] = newSharedSection;
+        newSharedSection.items.push(...mappedItems, ...incomingItems);
+
+        continue;
+      }
+
+      // Existing shared feature section gets its feature items.
+      mappedSection.items.push(...incomingItems);
+    }
+
+    context.statblock.push(...Object.values(sectionsMap));
+
+    SheetSections.getFilteredGlobalSectionsToShowWhenEmpty(
+      context.actor,
+      CONSTANTS.TAB_ACTOR_INVENTORY,
+    ).forEach((s) => {
+      inventory[s] ??= Inventory.createInventorySection(
+        this.document,
+        {
+          editable: context.editable,
+          owner: context.owner,
+          unlocked: context.unlocked,
+        },
+        CONSTANTS.TAB_ACTOR_INVENTORY,
+        s,
+        inventoryTypes,
+        {
+          canCreate: true,
+        },
+      );
+    });
+
+    context.inventory = Object.values(inventory);
+  }
+
+  protected async _prepareItem(
+    item: any,
+    ctx: VehicleItemQuadroneContext,
+    context: VehicleSheetQuadroneContext,
+  ): Promise<void> {
+    const { uses } = item.system;
+    ctx.hasUses = uses && uses.max > 0;
+
+    // Save
+    ctx.save = ItemContext.getItemSaveContext(item);
+
+    // To Hit
+    ctx.toHit = ItemContext.getToHit(item);
+
+    // Crew Assignment
+    const crew = item.system.crew;
+
+    if (item.system.isMountable) {
+      ctx.crew = await Promise.all(
+        Array.fromRange(Math.max(crew.max ?? 0, crew.value.length)).map(
+          async (index) => {
+            const uuid = crew.value[index];
+            let actor = uuid ? await fromUuid(uuid) : undefined;
+            const brokenLink = uuid && !actor;
+            if (brokenLink) {
+              actor = { uuid };
+            }
+            return { actor: actor, brokenLink };
+          },
+        ),
+      );
+
+      context.mountableItems[item.uuid] = {
+        uuid: item.uuid,
+        id: item.id,
+        img: item.img,
+        name: item.name,
+        crew: {
+          value: ctx.crew.filter((c) => !!c.actor).length,
+          max: item.system.crew.max,
+        },
+      };
+    }
+
+    if (item.type === CONSTANTS.ITEM_TYPE_SPELL) {
+      const linked = item.system.linkedActivity?.item;
+
+      const vsmcr = game.i18n.getListFormatter({ style: 'narrow' }).format(
+        item.labels.components.all
+          .filter((a: any) => !isNil(a?.abbr)) // a valid use case with Default Sheets is to exclude Abbreviation. Quadrone's design doesn't account for that, so we will exclude any components that don't supply an abbreviation.
+          .map((a: any) => a.abbr),
+      );
+
+      ctx.subtitle = [
+        linked
+          ? linked.name
+          : this.actor.identifiedItems.get(item.system.sourceItem)?.first()
+              ?.name,
+        vsmcr,
+      ].filterJoin(' &bull; ');
+    }
+  }
+
+  /**
+   * Prepare items that are mounted to a vehicle and require one or more crew to operate.
+   * @param item     Copy of the item data being prepared for display.
+   * @param ctx  Display context for the item.
+   * @protected
+   */
+  protected _prepareCrewedItem(item: any, ctx: VehicleItemQuadroneContext) {
+    // Determine crewed status
+    const isCrewed = item.system.crewed;
+    ctx.toggleClass = isCrewed ? 'active' : '';
+    ctx.toggleTitle = FoundryAdapter.localize(
+      `DND5E.${isCrewed ? 'Crewed' : 'Uncrewed'}`,
+    );
+
+    // Handle crew actions
+    if (
+      item.type === 'feat' &&
+      item.system.activation?.type === CONSTANTS.ACTIVATION_COST_CREW
+    ) {
+      if (item.system.cover === 1) {
+        ctx.cover = FoundryAdapter.localize('DND5E.CoverTotal');
+      } else if (item.system.cover === 0.5) {
+        ctx.cover = '½';
+      } else if (item.system.cover === 0.75) {
+        ctx.cover = '¾';
+      } else {
+        ctx.cover = '—';
+      }
+    }
+
+    // Prepare vehicle weapons
+    if (item.type === 'equipment' || item.type === 'weapon') {
+      ctx.threshold = item.system.hp?.dt ? item.system.hp.dt : '—';
+    }
+  }
+
+  _prepareTravelSpeeds(): VehicleSheetQuadroneContext['travelSpeeds'] {
+    const travelUnits = this.actor.system.attributes.travel?.units;
+    const travelPaceEntries = this._buildTravelPaceEntries();
+
+    const unitsDay =
+      CONFIG.DND5E.travelUnits[travelUnits]?.abbreviationDay ?? travelUnits;
+    const unitsHour =
+      CONFIG.DND5E.travelUnits[travelUnits]?.abbreviationHour ?? travelUnits;
+
+    // Determine the current/primary travel speed
+    const currentSpeed = travelPaceEntries[0] ?? {
+      key: '',
+      label: '',
+      valueDay: 0,
+      valueHour: 0,
+      unitsDay,
+      unitsHour,
+    };
+
+    return {
+      currentSpeed,
+      travelSpeeds: travelPaceEntries,
+      units: {
+        day: unitsDay,
+        hour: unitsHour,
+      },
+    };
+  }
+
+  _buildTravelPaceEntries(): TravelSpeedConfigEntry[] {
+    const entries: TravelSpeedConfigEntry[] = [];
+    const paces = this.actor.system.attributes.travel?.paces;
+    const speeds = this.actor.system.attributes.travel?.speeds;
+    const travelUnits = this.actor.system.attributes.travel?.units;
+
+    const unitsDay =
+      CONFIG.DND5E.travelUnits[travelUnits]?.abbreviationDay ?? travelUnits;
+    const unitsHour =
+      CONFIG.DND5E.travelUnits[travelUnits]?.abbreviationHour ?? travelUnits;
+
+    if (paces?.land > 0) {
+      entries.push({
+        key: 'land',
+        label: localize('DND5E.TRAVEL.Type.Land'),
+        valueDay: paces.land,
+        valueHour: speeds.land,
+        unitsDay,
+        unitsHour,
+      });
+    }
+    if (paces?.air > 0) {
+      entries.push({
+        key: 'air',
+        label: localize('DND5E.TRAVEL.Type.Air'),
+        valueDay: paces.air,
+        valueHour: speeds.air,
+        unitsDay,
+        unitsHour,
+      });
+    }
+    if (paces?.water > 0) {
+      entries.push({
+        key: 'water',
+        label: localize('DND5E.TRAVEL.Type.Water'),
+        valueDay: paces.water,
+        valueHour: speeds.water,
+        unitsDay,
+        unitsHour,
+      });
+    }
+
+    return entries;
+  }
+
+  async removeBrokenLinks(area?: CrewArea5e) {
+    const context = await this._prepareContext({ tidy: { soft: true } });
+
+    let toUpdate: Record<string, any> = {};
+
+    const itemUpdates: Promise<void>[] = [];
+
+    if (area === CONSTANTS.SECTION_TYPE_CREW || !area) {
+      let crew = this.document.system.crew.value as string[];
+      crew = crew.filter((uuid) => !context.crewBrokenLinks.includes(uuid));
+      toUpdate['system.crew.value'] = crew;
+
+      // Clear all item assignments
+      const vehicleItems = context.items.filter((i) => i.system.isMountable);
+      for (const item of vehicleItems) {
+        const repairedItemCrew = item.system.crew.value.filter(
+          (uuid: string) => !context.crewBrokenLinks.includes(uuid),
+        );
+
+        itemUpdates.push(
+          item.update({ 'system.crew.value': repairedItemCrew }),
+        );
+      }
+    }
+
+    if (area === CONSTANTS.SECTION_TYPE_PASSENGERS || !area) {
+      let passengers = this.document.system.passengers.value as string[];
+      passengers = passengers.filter(
+        (uuid) => !context.passengerBrokenLinks.includes(uuid),
+      );
+      toUpdate['system.passengers.value'] = passengers;
+    }
+
+    if (area === CONSTANTS.SECTION_TYPE_DRAFT_ANIMALS || !area) {
+      let draft = this.document.system.draft.value as string[];
+      draft = draft.filter((uuid) => !context.draftBrokenLinks.includes(uuid));
+      toUpdate['system.draft.value'] = draft;
+    }
+
+    // game.release.generation <= 14 // convert to batched update
+    await Promise.all([this.document.update(toUpdate), ...itemUpdates]);
+  }
+
+  async removeDraftAnimal(uuid: string) {
+    const draft = [...this.actor.system.draft.value];
+    const removed = draft.findSplice((u) => u === uuid);
+
+    if (removed) {
+      return await this.actor.update({ 'system.draft.value': draft });
+    }
+  }
+
+  async removeUnassignedCrew(uuid: string) {
+    const context = await this._prepareContext({ tidy: { soft: true } });
+
+    const numberToRemove =
+      context.crew.unassigned.members.find((m) => m.actor.uuid === uuid)
+        ?.quantity ?? 0;
+
+    if (!numberToRemove) {
+      return;
+    }
+
+    await this.applyDeltaToCrew(
+      CONSTANTS.SECTION_TYPE_CREW,
+      uuid,
+      `-${numberToRemove}`,
+    );
+  }
+
+  async removePassengers(uuid: string) {
+    const passengers = [...this.actor.system.passengers.value];
+    const remaining = passengers.filter((u) => u !== uuid);
+
+    return await this.actor.update({ 'system.passengers.value': remaining });
+  }
+
+  async _onAdjustCrew(
+    actor: Actor5e,
+    dest: CrewArea5e,
+    {
+      src,
+      quantity,
+    }: { src?: CrewArea5e; quantity?: number | string | null } = {},
+  ) {
+    const adjustment = quantity ?? 1;
+    const updates = {};
+
+    if (src) {
+      Object.assign(
+        updates,
+        this.actor.system.getCrewUpdates(src, actor.uuid, `-${adjustment}`),
+      );
+    }
+
+    Object.assign(
+      updates,
+      this.actor.system.getCrewUpdates(dest, actor.uuid, `+${adjustment}`),
+    );
+
+    if (!foundry.utils.isEmpty(updates)) {
+      await this.actor.update(updates);
+    }
+  }
+
+  /**
+   * Handle assigning a crew member to a station.
+   * @param actor            The actor.
+   * @param item              The station.
+   * @param options.src An optional area the crew member came from.
+   * @protected
+   */
+  async _assignCrew(
+    memberUuid: string,
+    item: Item5e,
+    { src }: { src?: CrewArea5e } = {},
+  ): Promise<void> {
+    const itemUpdates = { _id: item.id };
+    const actorUpdates = { items: [itemUpdates] };
+    let crew = foundry.utils.getProperty(item, 'system.crew.value');
+
+    // Prevent assigning a non-crew-member.
+    if (src && src !== CONSTANTS.SECTION_TYPE_CREW) {
+      return;
+    }
+
+    // The actor may not be a crew member yet. If so, add them to the crew.
+    if (!src) {
+      Object.assign(
+        actorUpdates,
+        this.actor.system.getCrewUpdates(
+          CONSTANTS.SECTION_TYPE_CREW,
+          memberUuid,
+          '+1',
+        ),
+      );
+    }
+
+    foundry.utils.setProperty(
+      itemUpdates,
+      'system.crew.value',
+      crew.concat(memberUuid),
+    );
+
+    await this.actor.update(actorUpdates);
+  }
+
+  async _unassignCrew(memberUuid: string, itemUuid: string) {
+    let item = await fromUuid(itemUuid);
+
+    if (!item) {
+      return;
+    }
+
+    let crew = foundry.utils.getProperty(item, 'system.crew.value');
+
+    crew = [...crew];
+
+    if (!crew.findSplice((u: string) => u === memberUuid)) {
+      return;
+    }
+
+    await item.update({ 'system.crew.value': crew });
+  }
+
+  async applyDeltaToCrew(area: CrewArea5e, uuid: string, delta: string) {
+    let updates = {};
+    Object.assign(updates, this.actor.system.getCrewUpdates(area, uuid, delta));
+    await this.actor.update(updates);
+  }
+
+  getAssignableItems(): VehicleSheetQuadroneContext['mountableItems'] {
+    return { ...this._context.data?.mountableItems };
+  }
+
+  /* -------------------------------------------- */
+  /*  Sheet Actions                               */
+  /* -------------------------------------------- */
+
+  static async #adjustCrew(
+    this: Tidy5eVehicleSheetQuadrone,
+    event: Event,
+    target: HTMLElement,
+  ) {
+    const area = target.closest<HTMLElement>('[data-area]')?.dataset.area;
+    const uuid = target.closest<HTMLElement>('[data-uuid]')?.dataset.uuid;
+    const delta = target.dataset.delta;
+
+    if (area && uuid && delta) {
+      return this.applyDeltaToCrew(area, uuid, delta);
+    }
+  }
+
+  /* -------------------------------------------- */
+
+  static async #browseActors(
+    this: Tidy5eVehicleSheetQuadrone,
+    _event: Event,
+    target: HTMLElement,
+  ) {
+    const area =
+      target.closest('[data-area]')?.getAttribute('data-area') ??
+      CONSTANTS.SECTION_TYPE_CREW;
+
+    return this.browseAddActor(area);
+  }
+
+  /* -------------------------------------------- */
+
+  static async #removeBrokenLinks(
+    this: Tidy5eVehicleSheetQuadrone,
+    _event: Event,
+    target: HTMLElement,
+  ) {
+    const area = target.closest<HTMLElement>('[data-area]')?.dataset.area;
+    return this.removeBrokenLinks(area);
+  }
+
+  /* -------------------------------------------- */
+
+  static async #removeDraftAnimal(
+    this: Tidy5eVehicleSheetQuadrone,
+    _event: Event,
+    target: HTMLElement,
+  ) {
+    const uuid = target.closest<HTMLElement>('[data-uuid]')?.dataset.uuid;
+    if (uuid) {
+      return this.removeDraftAnimal(uuid);
+    }
+  }
+
+  /* -------------------------------------------- */
+
+  static async #removePassengers(
+    this: Tidy5eVehicleSheetQuadrone,
+    _event: Event,
+    target: HTMLElement,
+  ) {
+    const uuid = target.closest<HTMLElement>('[data-uuid]')?.dataset.uuid;
+    if (uuid) {
+      return this.removePassengers(uuid);
+    }
+  }
+
+  /* -------------------------------------------- */
+
+  static async #removeUnassignedCrew(
+    this: Tidy5eVehicleSheetQuadrone,
+    _event: Event,
+    target: HTMLElement,
+  ) {
+    const uuid = target.closest<HTMLElement>('[data-uuid]')?.dataset.uuid;
+    if (uuid) {
+      return this.removeUnassignedCrew(uuid);
+    }
+  }
+
+  /* -------------------------------------------- */
+
+  static async #unassignCrew(
+    this: Tidy5eVehicleSheetQuadrone,
+    _event: Event,
+    target: HTMLElement,
+  ) {
+    const memberUuid =
+      target.closest<HTMLElement>('[data-member-uuid]')?.dataset.memberUuid;
+    const itemUuid =
+      target.closest<HTMLElement>('[data-item-uuid]')?.dataset.itemUuid;
+
+    if (memberUuid && itemUuid) {
+      return this._unassignCrew(memberUuid, itemUuid);
+    }
+  }
+
+  /* -------------------------------------------- */
+  /*  Life-Cycle Handlers                         */
+  /* -------------------------------------------- */
+
+  _onChangeForm(formConfig: unknown, event: Event & { target: HTMLElement }) {
+    const input = event.target;
+    const { area } = input.closest<HTMLElement>('[data-area]')?.dataset ?? {};
+    const { uuid } = input.closest<HTMLElement>('[data-uuid]')?.dataset ?? {};
+    const name = input.dataset.name;
+
+    // Crew Quantity
+    const isCrewQuantityUpdate = name?.startsWith('crewQuantity:');
+
+    if (area && uuid && isCrewQuantityUpdate) {
+      return this._onCrewQuantityUpdated(input, area, uuid);
+    }
+
+    // Standard handling
+    return super._onChangeInputDelta(event);
+  }
+
+  private async _onCrewQuantityUpdated(
+    input: EventTarget & HTMLElement,
+    area: string,
+    uuid: string,
+  ) {
+    let value = input instanceof HTMLInputElement ? input.value : undefined;
+
+    const context = await this._prepareContext({ tidy: { soft: true } });
+
+    const existingQuantity =
+      area === CONSTANTS.SECTION_TYPE_PASSENGERS
+        ? context.passengers.members.find((m) => m.actor.uuid === uuid)
+            ?.quantity
+        : area === CONSTANTS.SECTION_TYPE_CREW
+          ? context.crew.unassigned.members.find((m) => m.actor.uuid === uuid)
+              ?.quantity
+          : undefined;
+
+    value = dnd5e.utils.parseDelta(value, existingQuantity);
+
+    return !Number.isNaN(value)
+      ? this.actor.system.adjustCrew(area, uuid, value)
+      : undefined;
+  }
+
+  /* -------------------------------------------- */
+  /*  Drag and Drop                               */
+  /* -------------------------------------------- */
+
+  /**
+   * Prepare vehicle-specific drag operations so
+   * the vehicle sheet can properly handle
+   * crew assignment and adjustment.
+   * This drag logic is intended to be compatible with default
+   * vehicle sheets.
+   */
+  async _onDragStart(
+    event: DragEvent & { target: HTMLElement; currentTarget: HTMLElement },
+  ) {
+    const { area } =
+      event.target.closest<HTMLElement>('[data-area]')?.dataset ?? {};
+    const { uuid } =
+      event.target.closest<HTMLElement>('[data-uuid]')?.dataset ?? {};
+    const { itemId } =
+      event.target.closest<HTMLElement>('[data-item-id]')?.dataset ?? {};
+    const { tidySectionKey: sectionKey } =
+      event.target.closest<HTMLElement>('[data-tidy-section-key]')?.dataset ??
+      {};
+
+    const { type } = foundry.utils.parseUuid(uuid) ?? {};
+
+    if (!area || type !== 'Actor') {
+      return super._onDragStart(event);
+    }
+
+    event.dataTransfer?.setData(
+      'text/plain',
+      JSON.stringify({ area, itemId, type, uuid, sectionKey }),
+    );
+  }
+
+  async _onDropActor(
+    event: DragEvent & { target: HTMLElement; currentTarget: HTMLElement },
+    document: Actor5e,
+  ) {
+    if (!document.system.isCreature) {
+      return;
+    }
+
+    let {
+      area: src,
+      itemId /* later, for assignment drops */,
+      sectionKey,
+    } = foundry.applications.ux.TextEditor.getDragEventData(event);
+
+    const { area: dest = CONSTANTS.SECTION_TYPE_CREW } =
+      event.target?.closest<HTMLElement>('[data-area]')?.dataset ?? {};
+
+    const { tidySectionKey: destKey } =
+      event.target?.closest<HTMLElement>('[data-tidy-section-key]')?.dataset ??
+      {};
+
+    // Same Crew Area, same section
+    if (src === dest && sectionKey === destKey) {
+      return;
+    }
+
+    const context = await this._prepareContext({ tidy: { soft: true } });
+
+    // From Assigned Crew, dropping away from Assigned
+    if (
+      src === CONSTANTS.SECTION_TYPE_CREW &&
+      sectionKey === 'assigned' &&
+      destKey !== 'assigned'
+    ) {
+      const currentAssignedItem = context.crew.assigned.members.find(
+        (m) => m.actor.uuid === document.uuid,
+      )?.assignedTo;
+
+      await this._unassignCrew(document.uuid, currentAssignedItem.uuid);
+    }
+
+    if (src === dest) {
+      return;
+    }
+
+    const quantity =
+      src === CONSTANTS.SECTION_TYPE_PASSENGERS
+        ? context.passengers.members.find((m) => m.actor.uuid === document.uuid)
+            ?.quantity
+        : src === CONSTANTS.SECTION_TYPE_CREW && sectionKey === 'unassigned'
+          ? context.crew.unassigned.members.find(
+              (m) => m.actor.uuid === document.uuid,
+            )?.quantity
+          : undefined;
+
+    // TODO: Handle Assignment, if relevant, instead of adjusting crew
+
+    return this._onAdjustCrew(document, dest, { src, quantity });
+  }
+
+  /* -------------------------------------------- */
+  /*  Helpers                                     */
+  /* -------------------------------------------- */
+
+  /**
+   * Group crew by UUID.
+   */
+  groupCrew(crew: string[]): Record<string, number> {
+    return crew.reduce(
+      (obj, uuid) => {
+        obj[uuid] ??= 0;
+        obj[uuid]++;
+        return obj;
+      },
+      {} as Record<string, number>,
+    );
+  }
+
+  /* -------------------------------------------- */
+
+  /**
+   * Resolve crew UUIDs.
+   */
+  async resolveCrewMemberContext(
+    context: VehicleSheetQuadroneContext,
+    group: Record<string, number>,
+    actorToItemAssignments?: Record<string, string[]>,
+  ): Promise<{
+    value: VehicleCrewMemberContext[];
+    broken: string[];
+  }> {
+    const value: VehicleCrewMemberContext[] = [];
+    const broken: string[] = [];
+
+    for (const [uuid, quantity] of Object.entries(group)) {
+      if (!quantity) {
+        continue;
+      }
+
+      const actor = await fromUuid(uuid);
+
+      if (!actor) {
+        broken.push(uuid);
+        continue;
+      }
+
+      const { system } = actor;
+      const cr = system.details?.cr ?? system.details?.level;
+      const subtitle = this._getSubtitle(actor);
+
+      if (actorToItemAssignments?.[uuid]) {
+        for (const item of actorToItemAssignments[uuid]) {
+          value.push({
+            type: 'crew',
+            uuid,
+            quantity,
+            actor,
+            cr,
+            subtitle,
+            assignedTo: item,
+            rowActions: AssignedCrewMemberRowActionRuntime.getRowActions({
+              app: context.sheet,
+              data: context,
+              rowDocument: actor,
+              sheetDocument: context.document,
+            }),
+          });
+        }
+      } else {
+        value.push({
+          type: 'crew',
+          uuid,
+          quantity,
+          actor,
+          cr,
+          subtitle,
+          rowActions: UnassignedCrewMemberRowActionRuntime.getRowActions({
+            app: context.sheet,
+            data: context,
+            rowDocument: actor,
+            sheetDocument: context.document,
+          }),
+        });
+      }
+    }
+
+    return {
+      value: value.sort((a, b) => {
+        return (
+          (b.cr ?? 0) - (a.cr ?? 0) ||
+          a.actor.name.localeCompare(b.actor.name, game.i18n.lang)
+        );
+      }),
+      broken,
+    };
+  }
+
+  private _getSubtitle(actor: Actor5e) {
+    const system = actor.system;
+
+    return [
+      CONFIG.DND5E.actorSizes[system.traits?.size]?.label,
+      system.details?.type?.label,
+      system.details?.cr
+        ? game.i18n.format('DND5E.CRLabel', {
+            cr: dnd5e.utils.formatCR(system.details.cr),
+          })
+        : null,
+      system.details?.level
+        ? game.i18n.format('DND5E.LevelNumber', {
+            level: system.details.level,
+          })
+        : null,
+    ].filterJoin(' • ');
+  }
+}

@@ -1,0 +1,769 @@
+<script lang="ts">
+  import TextInputQuadrone from 'src/components/inputs/TextInputQuadrone.svelte';
+  import TabContents from 'src/components/tabs/TabContents.svelte';
+  import Tabs from 'src/components/tabs/Tabs.svelte';
+  import { FoundryAdapter } from 'src/foundry/foundry-adapter';
+  import { getCharacterSheetQuadroneContext } from 'src/sheets/sheet-context.svelte';
+  import CharacterSubtitle from './character-parts/CharacterSubtitle.svelte';
+  import ActorExhaustionBar from './parts/ActorExhaustionBar.svelte';
+  import ActorPortrait from './parts/ActorPortrait.svelte';
+  import AbilityScore from './character-parts/AbilityScore.svelte';
+  import InspirationBadge from './character-parts/InspirationBadge.svelte';
+  import CharacterSidebar from './character-parts/CharacterSidebar.svelte';
+  import { getModifierData } from 'src/utils/formatting';
+  import { SvelteSet } from 'svelte/reactivity';
+  import { untrack } from 'svelte';
+  import { UserSheetPreferencesService } from 'src/features/user-preferences/SheetPreferencesService';
+  import { settings } from 'src/settings/settings.svelte';
+  import AbilitiesContainer from './parts/AbilitiesContainer.svelte';
+  import { CONSTANTS } from 'src/constants';
+
+  let context = $derived(getCharacterSheetQuadroneContext());
+
+  let appId = $derived(context.actor.uuid.slugify());
+
+  let localize = FoundryAdapter.localize;
+
+  let selectedTabId: string = $derived(context.currentTabId);
+
+  // TODO: Combine these across sheets somehow?
+  // Sidebar expanded setting, updates live.
+  let sidebarExpandedPreference = $derived.by(() => {
+    const type = context.actor.type;
+    return (
+      UserSheetPreferencesService.getByType(type)?.tabs?.[selectedTabId]
+        ?.sidebarExpanded ??
+      selectedTabId !== CONSTANTS.TAB_CHARACTER_ATTRIBUTES
+    );
+  });
+
+  // When the user expands or collapses the sidebar, remember their preference
+  //  for this tab.
+  let sidebarExpanded = $derived(sidebarExpandedPreference);
+
+  const swapAbilityScoreAndBonusEnabled = $derived(
+    settings.value.swapAbilityScoreAndBonus,
+  );
+
+  // Save two-way updates when the sidebar is expanded/collapsed from a sheet.
+  $effect(() => {
+    const expanded = sidebarExpanded;
+    untrack(() => {
+      const type = context.actor.type;
+      const tabId = selectedTabId;
+      const stored =
+        UserSheetPreferencesService.getByType(type)?.tabs?.[tabId]
+          ?.sidebarExpanded;
+      if (stored !== expanded) {
+        UserSheetPreferencesService.setDocumentTypeTabPreference(
+          type,
+          tabId,
+          'sidebarExpanded',
+          expanded,
+        );
+      }
+    });
+  });
+
+  let hpValueInputFocused = $state(false);
+  let hpTempInputFocused = $state(false);
+  let hpOverlayOpen = $state(false);
+  let hpOverlayFocusTarget = $state<'temp' | 'tempmax'>('temp');
+  let hpOverlayCloseOnBlur = $state(false);
+  let exhaustionBarFocused = $state(false);
+
+  let hpValueInput = $state<TextInputQuadrone>();
+  let hpTempInput = $state<TextInputQuadrone>();
+  let hpTempMaxInput = $state<TextInputQuadrone>();
+
+  let hpValue = $derived(context.system.attributes?.hp?.value ?? 0);
+  let effectiveMaxHp = $derived(
+    context.system.attributes?.hp?.effectiveMax ?? 0,
+  );
+  let hpMax = $derived(context.system.attributes?.hp?.max ?? 0);
+  let hpPct = $derived(
+    effectiveMaxHp < hpMax
+      ? ((hpValue / hpMax) * 100).toFixed(0)
+      : (context.system.attributes?.hp?.pct ?? 0).toFixed(0),
+  );
+  let hpAdjustedPct = $derived(
+    (((hpMax - effectiveMaxHp) / effectiveMaxHp) * 100).toFixed(0),
+  );
+  let hpTemp = $derived(context.system.attributes?.hp?.temp ?? 0);
+  let hpTempMax = $derived(context.system.attributes?.hp?.tempmax ?? 0);
+
+  let hdPct = $derived(context.system.attributes?.hd?.pct ?? 0);
+
+  let exhaustionLevel = $derived(context.system.attributes.exhaustion);
+
+  let ini = $derived(getModifierData(context.system.attributes.init.total));
+
+  let pb = $derived(getModifierData(context.system.attributes.prof ?? 0));
+
+  let extraTabs = new SvelteSet<string>();
+
+  // Focus the appropriate input when the HP overlay opens
+  $effect(() => {
+    if (hpOverlayOpen) {
+      if (hpOverlayFocusTarget === 'temp') {
+        hpTempInput?.selectText();
+      } else {
+        hpTempMaxInput?.selectText();
+      }
+    }
+  });
+
+  function handleHpInputKeyDown(
+    ev: KeyboardEvent & { currentTarget: EventTarget & HTMLElement },
+    originalValue: string | number,
+    closeOverlay = false,
+  ) {
+    if (ev.key !== 'Enter' && ev.key !== 'Escape') return;
+    ev.preventDefault();
+    if (ev.key === 'Escape') {
+      ev.stopPropagation();
+      (ev.currentTarget as HTMLInputElement).value = String(originalValue);
+    }
+    if (closeOverlay) hpOverlayCloseOnBlur = true;
+    ev.currentTarget.blur();
+  }
+</script>
+
+<header class="sheet-header flexcol">
+  <div class="sheet-header-content flexrow">
+    <div class="actor-details-container flexcol">
+      <div
+        class="actor-context-row flexrow {context.enableXp ? 'show-xp' : ''}"
+      >
+        <div class="flexcol flex1">
+          <div
+            class="actor-details-name-row"
+            data-tidy-sheet-part="name-header-row"
+          >
+            {#if context.unlocked}
+              <TextInputQuadrone
+                field="name"
+                document={context.actor}
+                value={context.actor.name}
+                class="actor-name flex1 h1"
+                data-tidy-sheet-part="actor-name"
+                data-tooltip={context.actor.name}
+              />
+            {:else}
+              <h1
+                class="actor-name flex1"
+                data-tidy-sheet-part="actor-name"
+                data-tooltip={context.actor.name}
+              >
+                <!-- svelte-ignore a11y_missing_attribute -->
+                <a 
+                  data-action="copyInnerText" 
+                  class="cursor highlight-on-hover"
+                  role="button"
+                  tabindex="0"
+                  aria-label={localize('TIDY5E.CopyToClipboard')}
+                >
+                  {context.actor.name}
+                </a>
+              </h1>
+            {/if}
+            {#if context.editable}
+              <div
+                class={[
+                  'sheet-header-actions',
+                  'flexrow',
+                  { ['show-xp']: context.enableXp },
+                ]}
+                data-tidy-sheet-part="sheet-header-actions-container"
+              >
+                {#each Object.entries(context.config.restTypes) as [key, rest]}
+                  <button
+                    type="button"
+                    class="button button-icon-only button-gold"
+                    data-tooltip=""
+                    aria-label={localize(rest.label)}
+                    data-action="rest"
+                    data-type={key}
+                    disabled={!context.editable}
+                  >
+                    <i class={rest.icon}></i>
+                  </button>
+                {/each}
+              </div>
+            {/if}
+          </div>
+          <CharacterSubtitle />
+        </div>
+        <div class="level-container flex0 flexrow">
+          <InspirationBadge
+            actor={context.actor}
+            inspirationSource={context.inspirationSource}
+          />
+          <div class="level-block">
+            <span
+              class="level bonus font-data-xlarge color-text-default"
+              data-tooltip="DND5E.Level"
+            >
+              {context.system.details.level ?? 0}
+            </span>
+            <div
+              class="proficiency-bonus flexrow"
+              data-tooltip="DND5E.ProficiencyBonus"
+            >
+              <span class="label font-label-medium color-text-gold">
+                {localize('DND5E.ProficiencyBonusAbbr')}
+              </span>
+              <span class="modifier font-label-medium color-text-lightest">
+                {pb.sign}
+              </span>
+              <span class="value font-data-medium color-text-default">
+                {pb.value}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <AbilitiesContainer
+        collapsedAbilityThresholdRems={3.5}
+        smallerAbilityThresholdRems={4}
+        constantHorizontalSpaceRems={20.5}
+      >
+        <div class="ac-container flexcol">
+          <div
+            class="shield"
+            data-attribution="attributes.ac"
+            data-attribution-caption="DND5E.ArmorClass"
+            data-tooltip-direction="DOWN"
+          >
+            <span class="ac-value color-text-default">
+              {context.system.attributes.ac.value}
+            </span>
+            <span class="ac-label font-label-medium color-text-gold">AC</span>
+            {#if context.unlocked}
+              <button
+                aria-label={localize('DND5E.ARMORCLASS.Action.Configure')}
+                data-tooltip="DND5E.ARMORCLASS.Action.Configure"
+                type="button"
+                class="button button-borderless button-icon-only button-config"
+                data-action="showConfiguration"
+                data-config="armorClass"
+              >
+                <i class="fas fa-cog"></i>
+              </button>
+            {/if}
+          </div>
+          <div class="ability-labels flexcol">
+            {#if swapAbilityScoreAndBonusEnabled}
+              <span class="label font-label-medium color-text-gold"
+                >{localize('DND5E.Modifier')}</span
+              >
+            {:else}
+              <span class="label font-label-medium color-text-gold"
+                >{localize('DND5E.AbilityScoreShort')}</span
+              >
+            {/if}
+            <span class="divider"></span>
+            <span class="label font-label-medium color-text-gold"
+              >{localize('DND5E.SavingThrowShort')}</span
+            >
+          </div>
+        </div>
+        {#each context.abilities as ability}
+          <AbilityScore
+            {ability}
+            unlocked={context.unlocked}
+            onScoreChanged={(score) =>
+              context.actor.update({
+                [`system.abilities.${ability.key}.value`]: score,
+              })}
+            disabled={!context.owner}
+          />
+        {/each}
+        <div class="ability initiative flexcol">
+          <div
+            class="initiative-score-container"
+            data-tooltip="DND5E.Initiative"
+          >
+            <button
+              type="button"
+              class="ability-roll-button button-borderless"
+              data-action="roll"
+              data-type="initiative"
+              disabled={!context.owner}
+              data-has-roll-modes
+            >
+              <span class="ability-abbr color-text-gold"
+                >{localize('DND5E.InitiativeAbbr')}</span
+              >
+              <span class="ability-label-container initiative-bonus">
+                <span class="modifier color-text-lightest">{ini.sign}</span
+                ><span class="bonus color-text-default">{ini.value}</span>
+              </span>
+            </button>
+            {#if context.unlocked}
+              <button
+                aria-label={localize('DND5E.InitiativeConfig')}
+                data-tooltip="DND5E.InitiativeConfig"
+                type="button"
+                class="button button-borderless button-icon-only button-config"
+                data-action="showConfiguration"
+                data-config="initiative"
+              >
+                <i class="fas fa-cog"></i>
+              </button>
+            {/if}
+          </div>
+          {#if context.saves.concentration}
+            {const save = $derived(context.saves.concentration)}
+            <div class="concentration flexcol">
+              <div class="flexrow concentration-bonus">
+                {#if context.isConcentrating}
+                  <i
+                    class="active-concentration-icon fas fa-arrow-rotate-left fa-spin fa-spin-reverse color-text-gold-emphasis"
+                    aria-label={localize('DND5E.Concentration')}
+                  ></i>
+                {:else}
+                  <i class="fas fa-head-side-brain color-text-gold"></i>
+                {/if}
+                {#if !context.unlocked}
+                  <span class="modifier font-label-medium color-text-lightest">
+                    {save.sign}
+                  </span>
+                  <span class="value font-data-medium color-text-default">
+                    {save.mod}
+                  </span>
+                {:else}
+                  {const tooltip = $derived(
+                    localize('DND5E.AbilityConfigure', {
+                      ability: context.saves.concentration.label,
+                    }),
+                  )}
+                  <div class="config-container">
+                    <button
+                      aria-label={tooltip}
+                      data-tooltip
+                      type="button"
+                      class="button button-borderless button-icon-only button-config"
+                      data-action="showConfiguration"
+                      data-config="ability"
+                      data-ability="concentration"
+                    >
+                      <i class="fas fa-cog"></i>
+                    </button>
+                  </div>
+                {/if}
+              </div>
+              <button
+                type="button"
+                onclick={(event) =>
+                  context.actor.rollConcentration({
+                    event,
+                    legacy: false,
+                  })}
+                class="unbutton concentration-roll-button"
+                data-has-roll-modes
+              >
+                <span class="label font-label-medium color-text-gold"
+                  >{localize(save.label)}</span
+                >
+              </button>
+            </div>
+          {/if}
+        </div>
+      </AbilitiesContainer>
+    </div>
+    <div class="actor-vitals-container">
+      <!-- TODO: Add switch for size -->
+      <ActorPortrait />
+      <div class="actor-vitals theme-dark">
+        <div class="hp-row flexrow">
+          <div
+            class="meter progress hit-points"
+            style={effectiveMaxHp < hpMax
+              ? `--bar-percentage: ${hpPct}%; --bar-adjusted: ${hpAdjustedPct}%; --adjusted-darker: var(--t5e-color-palette-green-21); --adjusted-lighter: var(--t5e-color-palette-green-43);`
+              : `--bar-percentage: ${hpPct}%`}
+          >
+            <button
+              type="button"
+              class="label pointer"
+              hidden={hpValueInputFocused}
+              onclick={async (ev) => {
+                hpValueInputFocused = true;
+                hpValueInput?.selectText();
+              }}
+              oncontextmenu={(ev) => {
+                ev.preventDefault();
+                hpOverlayFocusTarget = 'tempmax';
+                hpOverlayOpen = true;
+              }}
+              disabled={!context.editable}
+            >
+              <div
+                class="value"
+                aria-label={localize('DND5E.HitPointsCurrent')}
+              >
+                {hpValue}
+              </div>
+              <div class="separator">/</div>
+              <div class="max" aria-label={localize('DND5E.HitPointsMax')}>
+                {effectiveMaxHp}
+              </div>
+              {#if effectiveMaxHp !== hpMax}
+                <div class="max-hp-override-container">
+                  <span class="font-default-small color-text-lighter">
+                    {hpTempMax < 0 ? '-' : '+'}
+                  </span>
+                  <span class="font-default-small color-text-lighter">
+                    {hpTempMax}
+                  </span>
+                </div>
+              {/if}
+            </button>
+            <TextInputQuadrone
+              bind:this={hpValueInput}
+              id="{appId}-system-attributes-hp"
+              document={context.actor}
+              field="system.attributes.hp.value"
+              class="hp-input"
+              value={hpValue}
+              selectOnFocus={true}
+              enableDeltaChanges={true}
+              onfocus={() => (hpValueInputFocused = true)}
+              onblur={() => (hpValueInputFocused = false)}
+              onkeydown={(ev) => handleHpInputKeyDown(ev, hpValue)}
+              blurAfterChange={true}
+              hidden={!hpValueInputFocused}
+            />
+          </div>
+
+          {#if !context.unlocked}
+            {#if hpTemp > 0}
+              <!-- TODO: Convert to button -->
+              <div
+                role="button"
+                tabindex="0"
+                class="temp-hp label pointer"
+                onclick={() => {
+                  hpOverlayFocusTarget = 'temp';
+                  hpOverlayOpen = true;
+                }}
+                onkeydown={(ev) => {
+                  if (ev.key === 'Enter' || ev.key === ' ') {
+                  hpOverlayFocusTarget = 'temp';
+                  hpOverlayOpen = true;
+                  }
+                }}
+                oncontextmenu={(ev) => {
+                  ev.preventDefault();
+                  hpOverlayFocusTarget = 'tempmax';
+                  hpOverlayOpen = true;
+                }}
+              >
+                <span class="modifier font-label-large color-text-lighter"
+                  >+</span
+                >
+                <span
+                  class="value font-data-large color-text-default"
+                  data-tooltip="DND5E.HitPointsTemp">{hpTemp}</span
+                >
+              </div>
+            {:else if context.editable}
+              <button
+                aria-label={localize('DND5E.HitPointsTemp')}
+                data-tooltip="DND5E.HitPointsTemp"
+                type="button"
+                class="button button-borderless button-icon-only temp-hp"
+                onclick={() => {
+                  hpOverlayFocusTarget = 'temp';
+                  hpOverlayOpen = true;
+                }}
+                oncontextmenu={(ev) => {
+                  ev.preventDefault();
+                  hpOverlayFocusTarget = 'tempmax';
+                  hpOverlayOpen = true;
+                }}
+                disabled={!context.editable}
+              >
+                <i class="fas fa-hand-holding-heart"></i>
+              </button>
+            {/if}
+            <!-- <TextInputQuadrone
+              bind:this={hpTempInput}
+              id="{appId}-system-attributes-hp-temp"
+              document={context.actor}
+              field="system.attributes.hp.temp"
+              class="hp-temp-input"
+              value={hpTemp}
+              selectOnFocus={true}
+              enableDeltaChanges={true}
+              onfocus={() => (hpTempInputFocused = true)}
+              onblur={() => (hpTempInputFocused = false)}
+              blurAfterChange={true}
+              hidden={!hpTempInputFocused}
+            /> -->
+          {:else if context.editable}
+            <button
+              data-action="showConfiguration"
+              data-config="hitPoints"
+              aria-label={localize('DND5E.HitPointsConfig')}
+              data-tooltip="DND5E.HitPointsConfig"
+              type="button"
+              class={[
+                'button',
+                'button-borderless',
+                'button-icon-only',
+                'button-config',
+                { editMode: context.unlocked },
+              ]}
+            >
+              <i class="fas fa-cog"></i>
+            </button>
+          {/if}
+          {#if hpOverlayOpen}
+            <div class="hp-overlay-bar flexrow">
+              <span class="font-label-medium color-text-gold">Max</span>
+              <TextInputQuadrone
+                bind:this={hpTempMaxInput}
+                id="{appId}-system-attributes-hp-tempmax"
+                document={context.actor}
+                field="system.attributes.hp.tempmax"
+                class="hp-temp-input"
+                value={hpTempMax}
+                selectOnFocus={true}
+                enableDeltaChanges={false}
+                onkeydown={(ev) => handleHpInputKeyDown(ev, hpTempMax, true)}
+                onfocus={() => {
+                  hpOverlayOpen = true;
+                }}
+                onblur={() => {
+                  if (hpOverlayCloseOnBlur) {
+                    hpOverlayOpen = false;
+                    hpOverlayCloseOnBlur = false;
+                  }
+                }}
+                blurAfterChange={true}
+              />
+              <span class="font-label-medium color-text-gold">Temp</span>
+              <TextInputQuadrone
+                bind:this={hpTempInput}
+                id="{appId}-system-attributes-hp-temp"
+                document={context.actor}
+                field="system.attributes.hp.temp"
+                class="hp-temp-input"
+                value={hpTemp}
+                selectOnFocus={true}
+                enableDeltaChanges={true}
+                onkeydown={(ev) => handleHpInputKeyDown(ev, hpTemp, true)}
+                onfocus={() => {
+                  hpOverlayOpen = true;
+                }}
+                onblur={() => {
+                  if (hpOverlayCloseOnBlur) {
+                    hpOverlayOpen = false;
+                    hpOverlayCloseOnBlur = false;
+                  }
+                }}
+                blurAfterChange={true}
+              />
+              <button
+                aria-label="Close HP overlay"
+                type="button"
+                class="button-borderless button-icon-only"
+                onclick={() => (hpOverlayOpen = false)}
+              >
+                <i class="fas fa-times"></i>
+              </button>
+              <button
+                data-action="showConfiguration"
+                data-config="hitPoints"
+                aria-label={localize('DND5E.HitPointsConfig')}
+                data-tooltip="DND5E.HitPointsConfig"
+                type="button"
+                class={[
+                  'button-borderless',
+                  'button-icon-only',
+                  'button-config',
+                  { editMode: context.unlocked },
+                ]}
+              >
+                <i class="fas fa-cog"></i>
+              </button>
+            </div>
+          {/if}
+        </div>
+        <div class="actor-vitals-row">
+          {#if exhaustionBarFocused}
+            <ActorExhaustionBar
+              level={exhaustionLevel}
+              total={context.config.conditionTypes.exhaustion.levels}
+              onClose={() => (exhaustionBarFocused = false)}
+              onExhaustionLevelSet={async (level) => {
+                await context.actor.update({
+                  'system.attributes.exhaustion': level,
+                });
+              }}
+            />
+          {:else}
+            <div class="hd-row-container">
+              <button
+                aria-label={localize('DND5E.HitDiceConfig')}
+                type="button"
+                class="unbutton hd-row"
+                data-action="showConfiguration"
+                data-config="hitDice"
+                data-tooltip="DND5E.HitDiceConfig"
+              >
+                <div
+                  class="meter progress hit-die view-only"
+                  style="--bar-percentage: {hdPct}%"
+                >
+                  <span class="label">
+                    <div
+                      class="value"
+                      data-tooltip="TIDY5E.HitDice.Current.Label"
+                    >
+                      {context.system.attributes?.hd?.value ?? '0'}
+                    </div>
+                    <div class="separator color-text-gold">/</div>
+                    <div class="max" data-tooltip="TIDY5E.HitDice.Max.Label">
+                      {context.system.attributes?.hd?.max ?? '0'}
+                    </div>
+                    <div class="hd-label" data-tooltip="DND5E.HitDice">
+                      {localize('TIDY5E.HitDice.Abbreviation')}
+                    </div>
+                  </span>
+                </div>
+              </button>
+              {#if context.unlocked}
+                <button
+                  data-action="showConfiguration"
+                  data-config="hitDice"
+                  aria-label={localize('DND5E.HitDiceConfig')}
+                  data-tooltip="DND5E.HitDiceConfig"
+                  type="button"
+                  class="button button-borderless button-icon-only button-config"
+                >
+                  <i class="fas fa-cog"></i>
+                </button>
+              {/if}
+            </div>
+
+            {#if context.editable || exhaustionLevel > 0}
+              <div class={['exhaustion', { exhausted: exhaustionLevel > 0 }]}>
+                <button
+                  type="button"
+                  class="button button-borderless button-icon-only"
+                  aria-label={localize('DND5E.Exhaustion')}
+                  data-tooltip
+                  onclick={() => (exhaustionBarFocused = !exhaustionBarFocused)}
+                  disabled={!context.editable}
+                >
+                  <i class="fas fa-heart-pulse"></i>
+                  <span class="value">{exhaustionLevel}</span>
+                </button>
+              </div>
+            {/if}
+            {#if context.editable || context.unlocked}
+              <div class={['death-saves', { dying: context.showDeathSaves }]}>
+                {#if context.unlocked}
+                  <button
+                    aria-label={localize('DND5E.DeathSaveConfigure')}
+                    data-tooltip="DND5E.DeathSaveConfigure"
+                    type="button"
+                    class="button button-borderless button-icon-only button-config"
+                    data-action="showConfiguration"
+                    data-config="death"
+                  >
+                    <i class="fas fa-cog"></i>
+                  </button>
+                {:else if context.editable}
+                  <button
+                    type="button"
+                    class={[
+                      'button',
+                      'button-borderless',
+                      'button-icon-only',
+                      'button-death-saves',
+                      {
+                        dead: context.system.attributes.death.failure >= 3,
+                      },
+                    ]}
+                    aria-label={localize(
+                      context.showDeathSaves
+                        ? 'DND5E.DeathSaveHide'
+                        : 'DND5E.DeathSaveShow',
+                    )}
+                    data-tooltip=""
+                    onclick={() => context.actor.sheet.toggleDeathSaves()}
+                    disabled={!context.editable}
+                    oncontextmenu={(ev) => {
+                      ev.preventDefault();
+                      (async () => {
+                        await context.actor.update({
+                          'system.attributes.death.success': 0,
+                          'system.attributes.death.failure': 0,
+                        });
+                      })();
+                    }}
+                  >
+                    <i class="fas fa-skull"></i>
+                  </button>
+                {/if}
+              </div>
+            {/if}
+          {/if}
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="tabs-row">
+    <!-- svelte-ignore a11y_missing_attribute -->
+    <a
+      role="button"
+      tabindex="0"
+      class="sidebar-toggle button button-borderless"
+      data-tooltip={localize(
+        sidebarExpanded ? 'JOURNAL.ViewCollapse' : 'JOURNAL.ViewExpand',
+      )}
+      onclick={() => (sidebarExpanded = !sidebarExpanded)}
+      onkeydown={(ev) => {
+        if (ev.key === 'Enter' || ev.key === ' ') {
+          sidebarExpanded = !sidebarExpanded;
+        }
+      }}
+    >
+      {#if sidebarExpanded}
+        <i class="fa-solid fa-caret-left"></i>
+        <i class="fa-solid fa-sidebar-flip"></i>
+      {:else}
+        <i class="fa-solid fa-sidebar"></i>
+        <i class="fa-solid fa-caret-right"></i>
+      {/if}
+    </a>
+    <Tabs
+      bind:selectedTabId
+      {extraTabs}
+      tabs={context.tabs}
+      sheet={context.actor.sheet}
+      cssClass="actor-tabs"
+      tabContext={{ context, actor: context.actor }}
+    />
+  </div>
+</header>
+<div class="sheet-body">
+  <div class="main-content">
+    <div
+      class={['sidebar flexcol', { expanded: sidebarExpanded }]}
+      data-tidy-sheet-part="sidebar-container"
+    >
+      <CharacterSidebar />
+    </div>
+
+    <TabContents
+      tabs={context.tabs}
+      {selectedTabId}
+      {extraTabs}
+      cssClass="tidy-tab-contents"
+    />
+  </div>
+</div>

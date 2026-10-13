@@ -1,0 +1,82 @@
+<script lang="ts">
+  import { CONSTANTS } from 'src/constants';
+  import type { Ref } from 'src/features/reactivity/reactivity.types';
+  import { FoundryAdapter } from 'src/foundry/foundry-adapter';
+  import { getCharacterSheetQuadroneContext } from 'src/sheets/sheet-context.svelte';
+  import type { Actor5e } from 'src/types/types';
+  import { getContext } from 'svelte';
+
+  interface Props {
+    occupant: Actor5e | undefined;
+    type: string;
+    index: number;
+    facilityId: string;
+    facilityName: string;
+    uuid: string;
+  }
+
+  let { occupant, type, index, facilityId, facilityName, uuid }: Props =
+    $props();
+
+  let context = $derived(getCharacterSheetQuadroneContext());
+
+  let hoveredFacilityOccupant = getContext<Ref<string>>(
+    CONSTANTS.SVELTE_CONTEXT.HOVERED_FACILITY_OCCUPANT,
+  );
+
+  // Broken links always offer their menu, so they can be replaced or removed.
+  const linkAttributes = $derived(
+    context.unlocked || (context.editable && !occupant)
+      ? {
+          'data-action': 'showContextMenu',
+          'data-target-selector': '[data-actor-uuid]',
+        }
+      : context.editable && occupant
+        ? {
+            'data-action': 'showDocument',
+            'data-uuid': occupant.uuid,
+          }
+        : {},
+  );
+
+  const localize = FoundryAdapter.localize;
+
+  let name = $derived(occupant ? occupant.name : localize('TIDY5E.BrokenLink'));
+</script>
+
+<li
+  class={[
+    'roster-member',
+    type,
+    'occupant-with-menu',
+    {
+      highlight:
+        hoveredFacilityOccupant.value === `${facilityId}-${index}-${uuid}`,
+      unlocked: context.unlocked,
+
+    },
+  ]}
+  data-actor-uuid={uuid}
+  data-tooltip={localize('TIDY5E.Facilities.RosterMember.Label', {
+    actorName: name,
+    facilityName: facilityName,
+  })}
+  data-facility-id={facilityId}
+  data-facility-name={facilityName}
+  data-index={index}
+  data-context-menu={CONSTANTS.CONTEXT_MENU_TYPE_FACILITY_OCCUPANTS}
+  onmouseenter={() =>
+    (hoveredFacilityOccupant.value = `${facilityId}-${index}-${uuid}`)}
+  onmouseleave={() => (hoveredFacilityOccupant.value = '')}
+>
+  <a {...linkAttributes}>
+    {#if occupant}
+      <img src={occupant.img} alt={name} />
+    {:else}
+      <i class="fa-solid fa-link-slash broken-link-icon"></i>
+    {/if}
+    {#if context.unlocked}
+      <i class="fa-solid fa-ellipsis-vertical occupant-menu-icon"></i>
+    {/if}
+  </a>
+</li>

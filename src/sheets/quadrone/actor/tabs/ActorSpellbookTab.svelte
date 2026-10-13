@@ -1,0 +1,69 @@
+<script lang="ts">
+  import { CONSTANTS } from 'src/constants';
+  import { InlineToggleService } from 'src/features/expand-collapse/InlineToggleService.svelte';
+  import { SheetSections } from 'src/features/sections/SheetSections';
+  import { getSheetContext } from 'src/sheets/sheet-context.svelte';
+  import type {
+    CharacterSheetQuadroneContext,
+    NpcSheetQuadroneContext,
+  } from 'src/types/types';
+  import { getContext, setContext } from 'svelte';
+  import ItemsActionBar from '../../shared/ItemsActionBar.svelte';
+  import SpellTables from '../../shared/SpellTables.svelte';
+  import {
+    createSearchResultsState,
+    setSearchResultsContext,
+  } from 'src/features/search/search.svelte';
+  import { SectionVisibility } from 'src/features/sections/SectionVisibility';
+  import ActorSpellbookFooter from '../parts/ActorSpellbookFooter.svelte';
+  import SheetPins from '../../shared/SheetPins.svelte';
+
+  let context =
+    $derived(
+      getSheetContext<
+        CharacterSheetQuadroneContext | NpcSheetQuadroneContext
+      >(),
+    );
+
+  let tabId = getContext<string>(CONSTANTS.SVELTE_CONTEXT.TAB_ID);
+
+  let inlineToggleService = getContext<InlineToggleService>(
+    CONSTANTS.SVELTE_CONTEXT.INLINE_TOGGLE_SERVICE,
+  );
+
+  // Disable inline effects in the Spells tab.
+  setContext(CONSTANTS.SVELTE_CONTEXT.INLINE_EFFECTS_READONLY, true);
+
+  let searchCriteria = $state('');
+
+  const searchResults = createSearchResultsState();
+  setSearchResultsContext(searchResults);
+
+  let spellbook = $derived(
+    SheetSections.configureSpellbook(context.actor, tabId, context.spellbook),
+  );
+
+  $effect(() => {
+    SectionVisibility.syncItemTabSearchResults(searchResults, searchCriteria, {
+      itemContext: context.itemContext,
+      sections: spellbook,
+      tabId: tabId,
+    });
+  });
+</script>
+
+<ItemsActionBar bind:searchCriteria sections={spellbook} {tabId} />
+
+<div class="tab-content">
+  <SheetPins />
+
+  <SpellTables
+    sections={spellbook}
+    itemContext={context.itemContext}
+    {inlineToggleService}
+    sheetDocument={context.actor}
+    {searchCriteria}
+  />
+
+  <ActorSpellbookFooter {tabId} />
+</div>

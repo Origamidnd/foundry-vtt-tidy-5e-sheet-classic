@@ -1,0 +1,211 @@
+<script lang="ts">
+  import { FoundryAdapter } from 'src/foundry/foundry-adapter';
+  import { getEncounterSheetQuadroneContext } from 'src/sheets/sheet-context.svelte';
+  import { RowActionRuntimeBase } from 'src/runtime/table-row-actions/RowActionRuntimeBase';
+  import { CONSTANTS } from 'src/constants';
+  import TidyTable from 'src/components/table-quadrone/TidyTable.svelte';
+  import TidyTableHeaderRow from 'src/components/table-quadrone/TidyTableHeaderRow.svelte';
+  import TidyTableHeaderCell from 'src/components/table-quadrone/TidyTableHeaderCell.svelte';
+  import EncounterMemberNameCell from '../encounter-parts/EncounterMemberNameColumn.svelte';
+  import EncounterPlaceholderNameColumn from '../encounter-parts/EncounterPlaceholderNameColumn.svelte';
+  import { ThemeQuadrone } from 'src/theme/theme-quadrone.svelte';
+  import { observeResize } from 'src/features/resize-observation/attachments';
+  import MemberActionsColumnHeader from '../../item/columns/MemberActionsColumnHeader.svelte';
+  import RowActionsColumn from '../../item/columns/RowActionsColumn.svelte';
+  import { EncounterCombatantColumnRuntime } from 'src/runtime/table-columns/EncounterCombatantColumnRuntime';
+  import TidyTableCustomHeaderCells from 'src/components/table-quadrone/parts/TidyTableCustomHeaderCells.svelte';
+  import TidyTableCustomCells from 'src/components/table-quadrone/parts/TidyTableCustomCells.svelte';
+
+  let context = $derived(getEncounterSheetQuadroneContext());
+  let isBasicTheme = $derived(
+    ThemeQuadrone.getSheetThemeSettings({ doc: context.document })
+      .useBasicTheme ?? false,
+  );
+
+  const localize = FoundryAdapter.localize;
+
+  let sectionsInlineWidth: number = $state(0);
+
+  function onResize(entry: ResizeObserverEntry) {
+    sectionsInlineWidth = entry.borderBoxSize[0].inlineSize;
+  }
+</script>
+
+<aside class="sidebar expanded flexcol">
+  <button
+    type="button"
+    class="button button-primary button-preroll-initiative"
+    data-action="prerollAllInitiatives"
+    data-has-roll-modes
+  >
+    <i class="fas fa-dice-d20"></i>
+    {localize('TIDY5E.Encounter.PrerollInitiative')}
+  </button>
+  <button
+    type="button"
+    class="button button-add-all-placeholders"
+    data-action="addAllAsPlaceholders"
+  >
+    <i class="fas fa-circle-dashed"></i>
+    {localize('TIDY5E.Encounter.AddAllPlaceholders.Label')}
+  </button>
+  <hr />
+  <button
+    type="button"
+    class="button button-add-placeholder"
+    data-action="addNewPlaceholder"
+  >
+    <i class="fas fa-circle-dashed"></i>
+    {localize('TIDY5E.Encounter.AddPlaceholder.Label')}
+  </button>
+  <button
+    type="button"
+    class="button button-add-lair"
+    data-action="addNewLairPlaceholder"
+  >
+    <i class="fas fa-eye-evil"></i>
+    {localize('DND5E.LAIR.Action.Label')}
+  </button>
+  <button
+    type="button"
+    class="button button-add-init-20"
+    data-action="addNewPlaceholder"
+    data-initiative="20"
+  >
+    <i class="fas fa-circle-dashed"></i>
+    {localize('TIDY5E.Encounter.InitiativeCount.Label', { count: 20 })}
+  </button>
+  <button
+    type="button"
+    class="button button-add-init-15"
+    data-action="addNewPlaceholder"
+    data-initiative="15"
+  >
+    <i class="fas fa-circle-dashed"></i>
+    {localize('TIDY5E.Encounter.InitiativeCount.Label', { count: 15 })}
+  </button>
+  <button
+    type="button"
+    class="button button-add-init-10"
+    data-action="addNewPlaceholder"
+    data-initiative="10"
+  >
+    <i class="fas fa-circle-dashed"></i>
+    {localize('TIDY5E.Encounter.InitiativeCount.Label', { count: 10 })}
+  </button>
+</aside>
+
+<div class="tab-right-column">
+  <section class="tab-content" {@attach observeResize(onResize)}>
+    {const hasCombatants = $derived(
+      context.combat.some((section) => section.combatants.length),
+    )}
+    {#if !hasCombatants && context.editable}
+      <div class="inventory-empty empty-state-container">
+        <button
+          type="button"
+          class="button button-tertiary"
+          onclick={() => context.sheet._browseAddNpc()}
+        >
+          <i class="fas fa-plus"></i>
+          {localize('TIDY5E.AddSpecific', { name: localize('DND5E.Group.Member.one') })}
+        </button>
+      </div>
+    {/if}
+
+    {#each context.combat as section (section.key)}
+      {#if section.show && section.combatants.length}
+        {const visibleItemCount = $derived(section.combatants.length)}
+
+        {const rowActionInfo = $derived(
+          RowActionRuntimeBase.getRowActionWidthInfo(
+            section.combatants,
+            (entry) => entry.rowActions,
+            context.unlocked ? section.sectionActions : [],
+          ),
+        )}
+
+        {const hiddenColumns = $derived(
+          EncounterCombatantColumnRuntime.determineHiddenColumns(
+            sectionsInlineWidth - rowActionInfo.widthPx,
+            section.columns,
+          ),
+        )}
+
+        <TidyTable
+          key={section.key}
+          data-custom-section={section.custom ? true : null}
+        >
+          {#snippet header()}
+            <TidyTableHeaderRow class={!isBasicTheme ? 'theme-dark' : ''}>
+              <TidyTableHeaderCell primary={true}>
+                <h3>
+                  {localize(section.label)}
+                  <span class="table-header-count">{visibleItemCount}</span>
+                </h3>
+              </TidyTableHeaderCell>
+
+              <TidyTableCustomHeaderCells {context} {hiddenColumns} {section} />
+
+              <TidyTableHeaderCell
+                class="header-cell-actions"
+                columnWidth="{rowActionInfo.widthRems}rem"
+                data-tidy-column-key={CONSTANTS.COLUMN_KEY_ROW_ACTIONS}
+              >
+                <MemberActionsColumnHeader
+                  sheetDocument={context.document}
+                  sheetContext={context}
+                />
+              </TidyTableHeaderCell>
+            </TidyTableHeaderRow>
+          {/snippet}
+          {#snippet body()}
+            {#each section.combatants as combatant}
+              {const member = $derived(
+                combatant.type === 'member' ? combatant : null,
+              )}
+              {const placeholder = $derived(
+                combatant.type === 'placeholder' ? combatant : null,
+              )}
+              <div
+                class={[
+                  'tidy-table-row group-member',
+                  { 'include-in-combat': !combatant.includeInCombat },
+                ]}
+                style:--t5e-theme-color-default={member?.accentColor}
+                style:--t5e-theme-color-highlight={member?.highlightColor}
+                style:--t5e-member-color-hover={member?.highlightColor}
+                data-combatant-type={combatant.type}
+                data-member-uuid={member?.actor.uuid}
+                data-placeholder-id={placeholder?.id}
+                data-context-menu={!!member
+                  ? CONSTANTS.CONTEXT_MENU_TYPE_ENCOUNTER_MEMBER
+                  : CONSTANTS.CONTEXT_MENU_TYPE_ENCOUNTER_PLACEHOLDER}
+              >
+                {#if combatant.type === 'placeholder'}
+                  <EncounterPlaceholderNameColumn placeholder={combatant} />
+                {:else if member}
+                  <EncounterMemberNameCell {member} />
+                {/if}
+
+                <TidyTableCustomCells
+                  {context}
+                  ctx={combatant}
+                  {section}
+                  entry={member?.actor}
+                  {hiddenColumns}
+                />
+
+                <RowActionsColumn
+                  columnWidth="{rowActionInfo.widthRems}rem"
+                  rowActions={combatant.rowActions}
+                  data={combatant}
+                />
+              </div>
+            {/each}
+          {/snippet}
+        </TidyTable>
+      {/if}
+    {/each}
+  </section>
+</div>

@@ -1,0 +1,32 @@
+<script lang="ts">
+  import { FoundryAdapter } from 'src/foundry/foundry-adapter';
+  import { getItemSheetContextQuadrone } from 'src/sheets/sheet-context.svelte';
+
+  let context = $derived(getItemSheetContextQuadrone());
+
+  const localize = FoundryAdapter.localize;
+
+  let gmEditMode = $derived(FoundryAdapter.isInGmEditMode(context.document));
+
+  let conceal = $derived(
+    context.item.system.identified === false && !gmEditMode,
+  );
+</script>
+
+{#if !conceal}
+  <div class="item-charges">
+    <div class="counter">
+      <span class="value font-label-medium">
+        {context.item.system.uses.max - context.item.system.uses.spent}
+      </span>
+      <span class="charges-slash separator font-default-medium">/</span>
+      <span class="max font-label-medium">
+        {context.item.system.uses.max}
+      </span>
+    </div>
+    <div class="counter color-text-diminished">&mdash;</div>
+    <span class="charges-text font-label-medium">
+      {localize('DND5E.Charges')}
+    </span>
+  </div>
+{/if}

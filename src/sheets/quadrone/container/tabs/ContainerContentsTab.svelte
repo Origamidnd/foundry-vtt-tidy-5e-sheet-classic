@@ -1,0 +1,94 @@
+<script lang="ts">
+  import { FoundryAdapter } from 'src/foundry/foundry-adapter';
+  import { CONSTANTS } from 'src/constants';
+  import { getContext } from 'svelte';
+  import CapacityBar from 'src/sheets/quadrone/container/parts/CapacityBar.svelte';
+  import InventoryTables from 'src/sheets/quadrone/shared/InventoryTables.svelte';
+  import { InlineToggleService } from 'src/features/expand-collapse/InlineToggleService.svelte';
+  import {
+    createSearchResultsState,
+    setSearchResultsContext,
+  } from 'src/features/search/search.svelte';
+  import { SectionVisibility } from 'src/features/sections/SectionVisibility';
+  import { getContainerSheetQuadroneContext } from 'src/sheets/sheet-context.svelte';
+  import { Container } from 'src/features/containers/Container';
+  import ItemsActionBar from '../../shared/ItemsActionBar.svelte';
+  import { buildContainerContentsSections } from '../settings/ContainerContentsSettingsTab';
+
+  const localize = FoundryAdapter.localize;
+
+  let context = $derived(getContainerSheetQuadroneContext());
+  let tabId = getContext<string>(CONSTANTS.SVELTE_CONTEXT.TAB_ID);
+
+  const contentsVisibility = $derived(
+    Container.getContentsVisibility(context.item, {
+      unlocked: context.unlocked,
+    }),
+  );
+
+  let inlineToggleService = getContext<InlineToggleService>(
+    CONSTANTS.SVELTE_CONTEXT.INLINE_TOGGLE_SERVICE,
+  );
+
+  let searchCriteria = $state('');
+
+  let configuredContents = $derived(
+    buildContainerContentsSections(context, tabId),
+  );
+
+  const searchResults = createSearchResultsState();
+  setSearchResultsContext(searchResults);
+
+  $effect(() => {
+    SectionVisibility.syncItemTabSearchResults(searchResults, searchCriteria, {
+      itemContext: context.itemContext,
+      sections: configuredContents,
+      tabId: tabId,
+    });
+  });
+
+  let footerEl: HTMLElement | undefined = $state();
+</script>
+
+{#if contentsVisibility === 'visible'}
+  <ItemsActionBar bind:searchCriteria sections={configuredContents} {tabId} />
+
+  <!-- Tables -->
+  <InventoryTables
+    sections={configuredContents}
+    container={context.item}
+    editable={context.editable}
+    itemContext={context.containerContents.itemContext}
+    {inlineToggleService}
+    {searchCriteria}
+    sheetDocument={context.item}
+    root={true}
+  />
+
+  <footer bind:this={footerEl} class="contents-footer">
+    <!-- Capacity Bar -->
+    <CapacityBar container={context.item} capacity={context.capacity} />
+    <!-- svelte-ignore a11y_missing_attribute -->
+    <a
+      aria-label={localize('DND5E.ItemCreate')}
+      role="button"
+      tabindex="0"
+      data-tooltip="DND5E.ItemCreate"
+      class="button button-icon-only button-primary item-create"
+      class:disabled={!context.editable}
+      onclick={() => Container.promptCreateInventoryItem(context.item)}
+      onkeydown={(event) => {
+        if (event.key === "Enter" || event.key === " " || event.key === "Spacebar") {
+          event.preventDefault();
+          Container.promptCreateInventoryItem(context.item);
+        }
+      }}
+    >
+      <i class="fas fa-plus"></i>
+    </a>
+  </footer>
+{:else}
+  <div class="inventory-empty empty-state-container color-text-lightest">
+    <p>{localize('DND5E.Unidentified.Notice')}</p>
+  </div>
+{/if}

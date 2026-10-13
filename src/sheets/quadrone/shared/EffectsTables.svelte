@@ -1,0 +1,207 @@
+<script lang="ts">
+  import TidyEffectTableRow from 'src/components/table-quadrone/TidyEffectTableRow.svelte';
+  import TidyTable from 'src/components/table-quadrone/TidyTable.svelte';
+  import TidyTableHeaderCell from 'src/components/table-quadrone/TidyTableHeaderCell.svelte';
+  import TidyTableHeaderRow from 'src/components/table-quadrone/TidyTableHeaderRow.svelte';
+  import TidyTableCell from 'src/components/table-quadrone/TidyTableCell.svelte';
+  import { FoundryAdapter } from 'src/foundry/foundry-adapter';
+  import type {
+    ActiveEffectContext,
+    ActiveEffectSection,
+    CharacterSheetQuadroneContext,
+  } from 'src/types/types';
+  import { CONSTANTS } from 'src/constants';
+  import { getSheetContext } from 'src/sheets/sheet-context.svelte';
+  import type { ItemSheetQuadroneContext } from 'src/types/item.types';
+  import { EffectColumnRuntime } from 'src/runtime/table-columns/EffectColumnRuntime.svelte';
+  import { ThemeQuadrone } from 'src/theme/theme-quadrone.svelte';
+  import { RowActionRuntimeBase } from 'src/runtime/table-row-actions/RowActionRuntimeBase';
+  import EffectActionsColumnHeader from '../item/columns/EffectActionsColumnHeader.svelte';
+  import RowActionsColumn from '../item/columns/RowActionsColumn.svelte';
+  import TidyTableCustomCells from 'src/components/table-quadrone/parts/TidyTableCustomCells.svelte';
+  import TidyTableCustomHeaderCells from 'src/components/table-quadrone/parts/TidyTableCustomHeaderCells.svelte';
+  import type { EffectRowAction } from 'src/types/row-actions.types';
+
+  interface Props {
+    inlineWidth: number;
+  }
+
+  let { inlineWidth }: Props = $props();
+
+  let context =
+    $derived(
+      getSheetContext<
+        CharacterSheetQuadroneContext | ItemSheetQuadroneContext
+      >(),
+    );
+
+  let isBasicTheme = $derived(
+    ThemeQuadrone.getSheetThemeSettings({ doc: context.document })
+      .useBasicTheme ?? false,
+  );
+
+  let sections = $derived(context.effects);
+
+  function getLongestRowActionsFromNestedEffects(effect: ActiveEffectContext) {
+    let rowActions: EffectRowAction[] = [];
+    for (const ae of [effect, ...effect.riders]) {
+      rowActions =
+        rowActions.length > ae.rowActions.length ? rowActions : ae.rowActions;
+    }
+
+    return rowActions;
+  }
+
+  const localize = FoundryAdapter.localize;
+</script>
+
+{#each sections as section (section.key)}
+  {#if section.show}
+    {const rowActionInfo = $derived(
+      RowActionRuntimeBase.getRowActionWidthInfo(
+        section.effects,
+        (entry) => getLongestRowActionsFromNestedEffects(entry),
+        context.unlocked ? section.sectionActions : [],
+      ),
+    )}
+
+    {const hiddenColumns = $derived(
+      EffectColumnRuntime.determineHiddenColumns(
+        inlineWidth - rowActionInfo.widthPx,
+        section.columns,
+        10,
+      ),
+    )}
+    {const effectEntries = $derived(
+      section.effects.map((effect: ActiveEffectContext) => ({
+        effect,
+      })),
+    )}
+
+    <TidyTable key={section.key}>
+      {#snippet header(expanded)}
+        <TidyTableHeaderRow
+          class="{!isBasicTheme ? 'theme-dark' : ''} {section.type ===
+            'suppressed' || section.disabled || effectEntries.length === 0
+            ? 'diminished'
+            : ''}"
+        >
+          <TidyTableHeaderCell primary={true} class="header-label-cell">
+            <h3>
+              {localize(section.label)}
+            </h3>
+            <span class="table-header-count">{section.effects.length}</span>
+          </TidyTableHeaderCell>
+
+          <TidyTableCustomHeaderCells {context} {hiddenColumns} {section} />
+
+          <TidyTableHeaderCell
+            class="header-cell-actions"
+            columnWidth="{rowActionInfo.widthRems}rem"
+            data-tidy-column-key={CONSTANTS.COLUMN_KEY_ROW_ACTIONS}
+          >
+            <EffectActionsColumnHeader
+              {section}
+              sheetDocument={context.document}
+            />
+          </TidyTableHeaderCell>
+        </TidyTableHeaderRow>
+      {/snippet}
+      {#snippet body()}
+
+        {#each effectEntries as effectContext}
+          {@render EffectRow(
+            effectContext.effect,
+            hiddenColumns,
+            section,
+            rowActionInfo.widthRems,
+          )}
+          {#each effectContext.effect.riders as rider}
+            {@render EffectRow(
+              rider,
+              hiddenColumns,
+              section,
+              rowActionInfo.widthRems,
+              true,
+            )}
+          {/each}
+        {/each}
+      {/snippet}
+    </TidyTable>
+  {/if}
+{/each}
+
+{#snippet EffectRow(
+  ctx: ActiveEffectContext,
+  hiddenColumns: Set<string>,
+  section: ActiveEffectSection,
+  rowActionsColumnWidthRems: number,
+  isRider?: boolean,
+)}
+  <TidyEffectTableRow effectContext={ctx}>
+    {#snippet children({ toggleSummary, expanded })}
+      {#if isRider}
+        <span class="inline-activity-arrow">
+          <i class="fa-solid fa-turn-up fa-fw fa-rotate-90 color-text-disabled"
+          ></i>
+        </span>
+      {/if}
+      <span class="tidy-table-row-use-button disabled">
+        <img
+          class="item-image"
+          src={ctx.effect.img ?? ctx.effect.icon}
+          alt={ctx.effect.name ?? ''}
+        />
+      </span>
+      <TidyTableCell primary={true}>
+        <!--svelte-ignore a11y_missing_attribute-->
+        <a
+          class="item-name"
+          onclick={(ev) => toggleSummary()}
+          onkeydown={(ev) =>
+            ev.key === 'Enter' || (ev.key === ' ' && toggleSummary())}
+          role="button"
+          tabindex="0"
+          data-keyboard-focus
+        >
+          <span class="cell-text">
+            <span class="cell-name">{ctx.effect.name}</span>
+          </span>
+          <span
+            class={[
+              'row-detail-expand-indicator',
+              expanded ? 'expanded' : 'collapsed',
+            ]}
+          >
+            <i class="fa-solid fa-angle-right expand-indicator"> </i>
+          </span>
+        </a>
+      </TidyTableCell>
+
+      <TidyTableCustomCells
+        {context}
+        {ctx}
+        entry={ctx}
+        {hiddenColumns}
+        {section}
+      />
+
+      <RowActionsColumn
+        columnWidth="{rowActionsColumnWidthRems}rem"
+        rowActions={ctx.rowActions}
+        data={{
+          effect: ctx.effect,
+          ctx,
+        }}
+      />
+    {/snippet}
+  </TidyEffectTableRow>
+{/snippet}
+
+<!-- TODO: hightouch, remove these temp styles whenever you apply the official ones -->
+<style lang="less">
+  .inline-activity-arrow {
+    padding-inline: 0.25rem;
+    align-self: center;
+  }
+</style>

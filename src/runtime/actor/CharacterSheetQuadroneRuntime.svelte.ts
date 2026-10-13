@@ -1,0 +1,129 @@
+import type { CharacterSheetQuadroneContext } from 'src/types/types';
+import { ActorSheetQuadroneRuntime } from '../ActorSheetQuadroneRuntime.svelte';
+import { CONSTANTS } from 'src/constants';
+import * as Bastion from 'src/features/facility/Bastion';
+import ActorEffectsTab from 'src/sheets/quadrone/actor/tabs/ActorEffectsTab.svelte';
+import ActorInventoryTab from 'src/sheets/quadrone/actor/tabs/ActorInventoryTab.svelte';
+import ActorJournalTab from 'src/sheets/quadrone/actor/tabs/ActorJournalTab.svelte';
+import ActorSpellbookTab from 'src/sheets/quadrone/actor/tabs/ActorSpellbookTab.svelte';
+import CharacterAttributesTab from 'src/sheets/quadrone/actor/tabs/CharacterAttributesTab.svelte';
+import CharacterBiographyTab from 'src/sheets/quadrone/actor/tabs/CharacterBiographyTab.svelte';
+import CharacterFeaturesTab from 'src/sheets/quadrone/actor/tabs/CharacterFeaturesTab.svelte';
+import CharacterBastionTab from 'src/sheets/quadrone/actor/tabs/CharacterBastionTab.svelte';
+import CharacterSheetTab from 'src/sheets/quadrone/actor/tabs/CharacterSheetTab.svelte';
+import { buildCharacterSheetTabOptions } from 'src/settings/tab-options/CharacterSheetTabOptions';
+import { buildActorInventoryTabOptions } from 'src/settings/tab-options/ActorInventoryTabOptions';
+import { buildActorSpellbookTabOptions } from 'src/settings/tab-options/ActorSpellbookTabOptions';
+import { buildCharacterFeaturesTabOptions } from 'src/settings/tab-options/CharacterFeaturesTabOptions';
+
+export const CharacterSheetQuadroneRuntime =
+  new ActorSheetQuadroneRuntime<CharacterSheetQuadroneContext>(
+    [
+      {
+        title: 'DND5E.EFFECT.Tab',
+        content: {
+          component: ActorEffectsTab,
+          type: 'svelte',
+        },
+        id: CONSTANTS.TAB_EFFECTS,
+        layout: 'quadrone',
+        iconClass: 'fa-solid fa-bolt',
+      },
+      {
+        title: 'DND5E.Inventory',
+        content: {
+          component: ActorInventoryTab,
+          type: 'svelte',
+        },
+        id: CONSTANTS.TAB_ACTOR_INVENTORY,
+        layout: 'quadrone',
+        iconClass: 'fa-solid fa-treasure-chest',
+        tabOptionsBuilder: buildActorInventoryTabOptions,
+      },
+      {
+        title: 'TIDY5E.JournalTabName',
+        content: {
+          component: ActorJournalTab,
+          type: 'svelte',
+        },
+        id: CONSTANTS.TAB_CHARACTER_JOURNAL,
+        layout: 'quadrone',
+        iconClass: 'fa-solid fa-notebook',
+      },
+      {
+        title: 'DND5E.Spellbook',
+        content: {
+          component: ActorSpellbookTab,
+          type: 'svelte',
+        },
+        id: CONSTANTS.TAB_ACTOR_SPELLBOOK,
+        layout: 'quadrone',
+        iconClass: 'fa-solid fa-book-sparkles',
+        tabOptionsBuilder: buildActorSpellbookTabOptions,
+      },
+      {
+        title: 'TIDY5E.WorldSettings.TabCharacter.tabLabel',
+        content: {
+          component: CharacterAttributesTab,
+          type: 'svelte',
+        },
+        id: CONSTANTS.TAB_CHARACTER_ATTRIBUTES,
+        layout: 'quadrone',
+        iconClass: 'fa-solid fa-wreath-laurel',
+      },
+      {
+        title: 'DND5E.Biography',
+        content: {
+          component: CharacterBiographyTab,
+          type: 'svelte',
+        },
+        id: CONSTANTS.TAB_ACTOR_BIOGRAPHY,
+        layout: 'quadrone',
+        iconClass: 'fa-solid fa-feather',
+      },
+      {
+        title: 'DND5E.Features',
+        content: {
+          component: CharacterFeaturesTab,
+          type: 'svelte',
+        },
+        id: CONSTANTS.TAB_CHARACTER_FEATURES,
+        layout: 'quadrone',
+        iconClass: 'fa-solid fa-cards-blank',
+        tabOptionsBuilder: buildCharacterFeaturesTabOptions,
+      },
+      {
+        title: 'DND5E.Bastion.Label',
+        content: {
+          component: CharacterBastionTab,
+          type: 'svelte',
+        },
+        enabled: (context) => Bastion.characterHasBastionTab(context.actor),
+        id: CONSTANTS.TAB_CHARACTER_BASTION,
+        layout: 'quadrone',
+        iconClass: 'fa-solid fa-house-turret',
+      },
+      {
+        title: () => game.release.generation < 14 ? 'Sheet' : 'DOCUMENT.Sheet',
+        content: {
+          component: CharacterSheetTab,
+          type: 'svelte',
+        },
+        id: CONSTANTS.TAB_ACTOR_ACTIONS,
+        layout: 'quadrone',
+        iconClass: 'fa-solid fa-chess-knight-piece',
+        tabOptionsBuilder: buildCharacterSheetTabOptions,
+      },
+    ],
+    [
+      CONSTANTS.TAB_ACTOR_ACTIONS,
+      CONSTANTS.TAB_CHARACTER_ATTRIBUTES,
+      CONSTANTS.TAB_ACTOR_INVENTORY,
+      CONSTANTS.TAB_ACTOR_SPELLBOOK,
+      CONSTANTS.TAB_CHARACTER_FEATURES,
+      CONSTANTS.TAB_EFFECTS,
+      CONSTANTS.TAB_ACTOR_BIOGRAPHY,
+      CONSTANTS.TAB_CHARACTER_BASTION,
+      CONSTANTS.TAB_CHARACTER_JOURNAL,
+    ],
+  );

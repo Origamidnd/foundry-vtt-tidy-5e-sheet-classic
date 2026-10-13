@@ -1,0 +1,163 @@
+<script lang="ts">
+  import { FoundryAdapter } from 'src/foundry/foundry-adapter';
+  import { getEncounterSheetQuadroneContext } from 'src/sheets/sheet-context.svelte';
+  import TidyTable from 'src/components/table-quadrone/TidyTable.svelte';
+  import TidyTableHeaderCell from 'src/components/table-quadrone/TidyTableHeaderCell.svelte';
+  import TidyTableHeaderRow from 'src/components/table-quadrone/TidyTableHeaderRow.svelte';
+  import { CONSTANTS } from 'src/constants';
+  import { RowActionRuntimeBase } from 'src/runtime/table-row-actions/RowActionRuntimeBase';
+  import EncounterMemberNameCell from '../encounter-parts/EncounterMemberNameColumn.svelte';
+  import MembersTabSidebar from '../encounter-parts/members-tab-sidebar/MembersTabSidebar.svelte';
+  import EncounterXPBudgetBar from '../encounter-parts/EncounterXPBudgetBar.svelte';
+  import SheetPins from '../../shared/SheetPins.svelte';
+  import GroupMemberHpTooltip from 'src/tooltips/GroupMemberHpTooltip.svelte';
+  import { setContext } from 'svelte';
+  import { ThemeQuadrone } from 'src/theme/theme-quadrone.svelte';
+  import { observeResize } from 'src/features/resize-observation/attachments';
+  import { EncounterMemberColumnRuntime } from 'src/runtime/table-columns/EncounterMemberColumnRuntime';
+  import MemberActionsColumnHeader from '../../item/columns/MemberActionsColumnHeader.svelte';
+  import RowActionsColumn from '../../item/columns/RowActionsColumn.svelte';
+  import TidyTableCustomCells from 'src/components/table-quadrone/parts/TidyTableCustomCells.svelte';
+  import TidyTableCustomHeaderCells from 'src/components/table-quadrone/parts/TidyTableCustomHeaderCells.svelte';
+
+  let context = $derived(getEncounterSheetQuadroneContext());
+
+  let isBasicTheme = $derived(
+    ThemeQuadrone.getSheetThemeSettings({ doc: context.document })
+      .useBasicTheme ?? false,
+  );
+
+  let hpTooltip = $state<GroupMemberHpTooltip | undefined>();
+  setContext(CONSTANTS.SVELTE_CONTEXT.HP_TOOLTIP, () => hpTooltip);
+
+  const localize = FoundryAdapter.localize;
+
+  let sectionsInlineWidth: number = $state(0);
+
+  function onResize(entry: ResizeObserverEntry) {
+    sectionsInlineWidth = entry.borderBoxSize[0].inlineSize;
+  }
+</script>
+
+<MembersTabSidebar />
+
+<GroupMemberHpTooltip bind:this={hpTooltip} sheetDocument={context.document} />
+
+<div class="tab-right-column">
+  <div class="tab-content" {@attach observeResize(onResize)}>
+    <SheetPins />
+
+    {#if context.memberContext.npc.length && context.difficulty?.label}
+      <div class="difficulty-row flexrow">
+        <div
+          class="pill pill-medium flexshrink"
+          data-tooltip="{localize('TIDY5E.Difficulty')}: {context.difficulty
+            .label}"
+        >
+          {context.difficulty.label}
+        </div>
+
+        <EncounterXPBudgetBar difficulty={context.difficulty} />
+      </div>
+    {/if}
+
+    {const hasMembers = $derived(
+      context.members.some((section) => section.members.length),
+    )}
+    {#if !hasMembers && context.editable}
+      <div class="inventory-empty empty-state-container">
+        <button
+          type="button"
+          class="button button-tertiary"
+          onclick={() => context.sheet._browseAddNpc()}
+        >
+          <i class="fas fa-plus"></i>
+          {localize('TIDY5E.AddSpecific', { name: localize('DND5E.Group.Member.one') })}
+        </button>
+      </div>
+    {/if}
+
+    {#each context.members as section (section.key)}
+      {#if section.show && section.members.length}
+        {const visibleItemCount = $derived(section.members.length)}
+
+        {const rowActionInfo = $derived(
+          RowActionRuntimeBase.getRowActionWidthInfo(
+            section.members,
+            (entry) => entry.rowActions,
+            context.unlocked ? section.sectionActions : [],
+          ),
+        )}
+
+        {const hiddenColumns = $derived(
+          EncounterMemberColumnRuntime.determineHiddenColumns(
+            sectionsInlineWidth - rowActionInfo.widthPx,
+            section.columns,
+          ),
+        )}
+
+        <TidyTable
+          key={section.key}
+          data-custom-section={section.custom ? true : null}
+        >
+          {#snippet header()}
+            <TidyTableHeaderRow class={!isBasicTheme ? 'theme-dark' : ''}>
+              <TidyTableHeaderCell primary={true}>
+                <h3>
+                  {localize(section.label)}
+                  <span class="table-header-count">{visibleItemCount}</span>
+                </h3>
+              </TidyTableHeaderCell>
+
+              <TidyTableCustomHeaderCells {context} {section} {hiddenColumns} />
+
+              <TidyTableHeaderCell
+                class="header-cell-actions"
+                columnWidth="{rowActionInfo.widthRems}rem"
+                data-tidy-column-key={CONSTANTS.COLUMN_KEY_ROW_ACTIONS}
+              >
+                <MemberActionsColumnHeader
+                  sheetDocument={context.document}
+                  sheetContext={context}
+                />
+              </TidyTableHeaderCell>
+            </TidyTableHeaderRow>
+          {/snippet}
+          {#snippet body()}
+            {#each section.members as member}
+              <div
+                class="tidy-table-row group-member"
+                style:--t5e-theme-color-default={member.accentColor}
+                style:--t5e-theme-color-highlight={member.highlightColor}
+                style:--t5e-member-color-hover={member.highlightColor}
+                data-tidy-draggable
+                data-member-uuid={member.actor.uuid}
+                data-index={member.index}
+                data-context-menu={CONSTANTS.CONTEXT_MENU_TYPE_ENCOUNTER_MEMBER}
+              >
+                <EncounterMemberNameCell {member} />
+
+                <TidyTableCustomCells
+                  {context}
+                  ctx={member}
+                  entry={member.actor}
+                  {section}
+                  {hiddenColumns}
+                />
+
+                <RowActionsColumn
+                  columnWidth="{rowActionInfo.widthRems}rem"
+                  rowActions={member.rowActions}
+                  data={{
+                    actor: member.actor,
+                    ctx: member,
+                  }}
+                />
+              </div>
+            {/each}
+          {/snippet}
+        </TidyTable>
+      {/if}
+    {/each}
+  </div>
+</div>

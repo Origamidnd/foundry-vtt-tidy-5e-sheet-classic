@@ -1,0 +1,51 @@
+<script lang="ts">
+  import { type Snippet } from 'svelte';
+  import { CONSTANTS } from 'src/constants';
+  import { FoundryAdapter } from 'src/foundry/foundry-adapter';
+  import TidyTableRow from '../table-quadrone/TidyTableRow.svelte';
+  import type { AdvancementItemContext, Item5e } from 'src/types/item.types';
+  import { isUserInteractable } from 'src/utils/element';
+
+  interface Props {
+    advancement: AdvancementItemContext;
+    item: Item5e;
+    rowClass?: string;
+    hidden?: boolean;
+    attributes?: Record<string, any>;
+    children?: Snippet;
+    afterRow?: Snippet;
+  }
+
+  let {
+    advancement,
+    item,
+    rowClass = '',
+    hidden = false,
+    attributes,
+    children,
+    afterRow: insideAfterRowSnippet,
+  }: Props = $props();
+
+  let doc = $derived(item.system.advancement?.get(advancement.id));
+</script>
+
+<TidyTableRow
+  rowContainerAttributes={{
+    ['data-id']: advancement?.id,
+  }}
+  rowContainerClass="activity"
+  rowClass="tidy-table-row-v2 {rowClass}"
+  rowAttributes={{
+    ['data-tidy-always-draggable']: '',
+    ['data-tidy-table-row']: '',
+    ['data-tidy-sheet-part']: CONSTANTS.SHEET_PARTS.ADVANCEMENT_TABLE_ROW,
+  }}
+  {hidden}
+  {...attributes}
+>
+  {@render children?.()}
+
+  {#snippet afterRow()}
+    {@render insideAfterRowSnippet?.()}
+  {/snippet}
+</TidyTableRow>

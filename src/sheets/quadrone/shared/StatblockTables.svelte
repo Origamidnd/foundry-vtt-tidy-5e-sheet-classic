@@ -1,0 +1,115 @@
+<script lang="ts">
+  import { CONSTANTS } from 'src/constants';
+  import type { InlineToggleService } from 'src/features/expand-collapse/InlineToggleService.svelte';
+  import { getSearchResultsContext } from 'src/features/search/search.svelte';
+  import { SectionVisibility } from 'src/features/sections/SectionVisibility';
+  import { FoundryAdapter } from 'src/foundry/foundry-adapter';
+  import { getSheetContext } from 'src/sheets/sheet-context.svelte';
+  import type {
+    Actor5e,
+    FeatureSection,
+    NpcItemQuadroneContext,
+    NpcSheetQuadroneContext,
+    SpellbookSection,
+  } from 'src/types/types';
+  import { getContext } from 'svelte';
+  import SpellTable from './SpellTable.svelte';
+  import FeatureTable from './FeatureTable.svelte';
+  import { observeResize } from 'src/features/resize-observation/attachments';
+
+  interface Props {
+    sections: (FeatureSection | SpellbookSection)[];
+    itemContext: Record<string, NpcItemQuadroneContext>;
+    inlineToggleService: InlineToggleService;
+    searchCriteria: string;
+    sheetDocument: Actor5e;
+  }
+
+  let {
+    sections,
+    itemContext,
+    inlineToggleService,
+    searchCriteria,
+    sheetDocument,
+  }: Props = $props();
+
+  const tabId = getContext<string>(CONSTANTS.SVELTE_CONTEXT.TAB_ID);
+
+  const searchResults = getSearchResultsContext();
+
+  let itemToggleMap = $derived(inlineToggleService.map);
+
+  let context = $derived(getSheetContext<NpcSheetQuadroneContext>());
+
+  const localize = FoundryAdapter.localize;
+
+  let sectionsInlineWidth: number = $state(0);
+
+  function onResize(entry: ResizeObserverEntry) {
+    sectionsInlineWidth = entry.borderBoxSize[0].inlineSize;
+  }
+
+  let totalItemCount = $derived(
+    sections.reduce((count, s) => count + s.items.length, 0),
+  );
+</script>
+
+<div class="tidy-table-container" {@attach observeResize(onResize)}>
+  {#if totalItemCount === 0}
+    <div class="features-empty empty-state-container">
+      <button
+        type="button"
+        class="button button-tertiary"
+        title={localize('DND5E.FeatureAdd')}
+        aria-label={localize('DND5E.FeatureAdd')}
+        onclick={() =>
+          sheetDocument.sheet._addDocument({
+            tabId,
+            creationItemTypes: [CONSTANTS.ITEM_TYPE_FEAT],
+          })}
+      >
+        <i class="fas fa-plus"></i>
+        {localize('DND5E.FeatureAdd')}
+      </button>
+    </div>
+  {:else}
+    {#each sections as section (section.key)}
+      {const sectionSearchState = $derived(
+        SectionVisibility.getItemSectionSearchState(
+          section.items,
+          searchResults,
+        ),
+      )}
+      {const showSection = $derived(
+        // We may want to backtrack here and not show spell sections in the future.
+        section.show &&
+          SectionVisibility.shouldShowItemSection(sectionSearchState, {
+            unlocked: context.unlocked,
+            alwaysShow:
+              section.type === CONSTANTS.SECTION_TYPE_SPELLBOOK &&
+              section.usesSlots,
+            showWhileSearching:
+              section.type === CONSTANTS.SECTION_TYPE_SPELLBOOK,
+          }),
+      )}
+      {#if showSection}
+        {#if section.type === CONSTANTS.SECTION_TYPE_FEATURE}
+          <FeatureTable
+            {section}
+            {itemToggleMap}
+            {sectionsInlineWidth}
+            {sheetDocument}
+          />
+        {:else if section.type === CONSTANTS.SECTION_TYPE_SPELLBOOK}
+          <SpellTable
+            {section}
+            {itemToggleMap}
+            {sectionsInlineWidth}
+            {sheetDocument}
+            tabId={CONSTANTS.TAB_ACTOR_SPELLBOOK}
+          />
+        {/if}
+      {/if}
+    {/each}
+  {/if}
+</div>

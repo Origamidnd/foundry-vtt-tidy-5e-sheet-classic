@@ -1,0 +1,281 @@
+import type { ConditionType } from 'src/foundry/config.types';
+import type { Dnd5eActorCondition } from 'src/foundry/foundry-and-system';
+import type {
+  ActiveEffect5e,
+  ActiveEffectContext,
+  ActiveEffectSection,
+  Actor5e,
+  SectionCommand,
+  DocumentSheetQuadroneContext,
+  EffectCategory,
+} from 'src/types/types';
+import { SettingsProvider } from 'src/settings/settings.svelte';
+import { EffectColumnRuntime } from 'src/runtime/table-columns/EffectColumnRuntime.svelte';
+import { CONSTANTS } from 'src/constants';
+import { EffectRowActionRuntime } from 'src/runtime/table-row-actions/EffectRowActionRuntime.svelte';
+
+export class ConditionsAndEffects {
+  static async getConditionsAndEffectsForActor(
+    actor: Actor5e,
+    object: any,
+    effectSections: Record<string, EffectCategory<ActiveEffect5e>>,
+  ): Promise<{
+    conditions: Dnd5eActorCondition[];
+    effects: Record<string, EffectCategory<ActiveEffectContext>>;
+  }> {
+    const conditionIds = new Set();
+    const conditions = Object.entries<ConditionType>(
+      CONFIG.DND5E.conditionTypes,
+    ).reduce<Dnd5eActorCondition[]>((arr, [k, c]) => {
+      if (c.pseudo) return arr; // Filter out pseudo-conditions.
+      const { name, img, reference } = c;
+      const id = dnd5e.utils.staticID(`dnd5e${k}`);
+      conditionIds.add(id);
+      const existing = actor.effects.get(id);
+      const { disabled, img: existingImg } = existing ?? {};
+      arr.push({
+        name,
+        reference: SettingsProvider.settings.referenceTooltipCondition.get()
+          ? reference
+          : undefined,
+        id: k,
+        icon: existingImg ?? img,
+        disabled: existing ? disabled : true,
+      });
+      return arr;
+    }, []);
+
+    for (const category of Object.values(effectSections)) {
+      category.effects = await category.effects.reduce(
+        async (arr: ActiveEffectContext[], effect: any) => {
+          effect.updateDuration();
+          if (conditionIds.has(effect.id) && !effect.duration.remaining) {
+            return arr;
+          }
+
+          const { id, name, img, disabled, duration } = effect;
+
+          let source = (await effect.getSource()) ?? actor;
+
+          // If the source is an ActiveEffect from another Actor, note the source as that Actor instead.
+          if (source instanceof ActiveEffect) {
+            source = source.target;
+            if (
+              source instanceof Item &&
+              source.parent &&
+              source.parent !== object
+            ) {
+              source = source.parent;
+            }
+          }
+
+          arr = await arr;
+          arr.push({
+            id,
+            name,
+            img,
+            disabled,
+            duration,
+            source,
+            parent,
+            parentId: effect.target === effect.parent ? null : effect.parent.id,
+            durationParts: duration.remaining ? duration.label.split(', ') : [],
+            hasTooltip: source instanceof dnd5e.documents.Item5e,
+            uuid: effect.uuid,
+            effect: effect,
+            riders: [],
+            rowActions: [], // for quadrone only
+          });
+          return arr;
+        },
+        [],
+      );
+    }
+
+    return {
+      conditions,
+      effects: effectSections,
+    };
+  }
+
+  static async getConditionsAndEffectsForActorQuadrone(
+    context: DocumentSheetQuadroneContext<any>,
+    object: any,
+    effectSections: Record<string, EffectCategory<ActiveEffect5e>>,
+  ): Promise<{
+    conditions: Dnd5eActorCondition[];
+    effects: ActiveEffectSection[];
+  }> {
+    const conditionIds = new Set();
+    const conditions = Object.entries<ConditionType>(
+      CONFIG.DND5E.conditionTypes,
+    ).reduce<Dnd5eActorCondition[]>((arr, [k, c]) => {
+      if (c.pseudo) return arr; // Filter out pseudo-conditions.
+      const { name, img, reference } = c;
+      const id = dnd5e.utils.staticID(`dnd5e${k}`);
+      conditionIds.add(id);
+      const existing = context.document.effects.get(id);
+      const { disabled, img: existingImg } = existing ?? {};
+      arr.push({
+        name,
+        reference,
+        id: k,
+        icon: existingImg ?? img,
+        disabled: existing ? disabled : true,
+      });
+      return arr;
+    }, []);
+
+    const sectionActions: SectionCommand[] = [];
+    const newCategories: ActiveEffectSection[] = [];
+
+    for (const [key, category] of Object.entries(effectSections)) {
+      newCategories.push({
+        ...category,
+        effects: await category.effects.reduce(
+          async (arr: ActiveEffectContext[], effect: any) => {
+            effect.updateDuration();
+            if (conditionIds.has(effect.id) && !effect.duration.remaining) {
+              return arr;
+            }
+
+            const { id, name, img, disabled, duration } = effect;
+
+            let source = (await effect.getSource()) ?? context.document;
+
+            // If the source is an ActiveEffect from another Actor, note the source as that Actor instead.
+            if (source instanceof ActiveEffect) {
+              source = source.target;
+              if (
+                source instanceof Item &&
+                source.parent &&
+                source.parent !== object
+              ) {
+                source = source.parent;
+              }
+            }
+
+            arr = await arr;
+            arr.push({
+              id,
+              name,
+              img,
+              disabled,
+              duration,
+              source,
+              parent,
+              parentId:
+                effect.target === effect.parent ? null : effect.parent.id,
+              durationParts: duration.remaining
+                ? duration.label.split(', ')
+                : [],
+              hasTooltip: source instanceof dnd5e.documents.Item5e,
+              uuid: effect.uuid,
+              effect: effect,
+              riders: [],
+              rowActions: EffectRowActionRuntime.getRowActions({
+                app: context.document.sheet,
+                data: {
+                  owner: effect.isOwner,
+                  unlocked: context.unlocked,
+                  editable: context.editable,
+                },
+                rowDocument: effect,
+                sheetDocument: context.document,
+              }),
+            });
+            return arr;
+          },
+          [],
+        ),
+        key: key,
+        canCreate:
+          context.editable && !category.isEnchantment && !category.disabled,
+        dataset: {}, // TODO: put things that help with effect creation via _addDocument here
+        show: !category.hidden,
+        sectionActions,
+        columns: EffectColumnRuntime.getColumnSpecifications({
+          sheetDocument: context.document,
+          tabId: CONSTANTS.TAB_EFFECTS,
+          sectionKey: key,
+          editable: context.editable,
+          owner: context.document.isOwner,
+          unlocked: context.unlocked,
+        }),
+      });
+    }
+
+    return {
+      conditions,
+      effects: newCategories,
+    };
+  }
+
+  static async getEffectsForItem(
+    context: DocumentSheetQuadroneContext<any>,
+    effectSections: Record<string, EffectCategory<ActiveEffect5e>>,
+  ): Promise<ActiveEffectSection[]> {
+    const newCategories: ActiveEffectSection[] = [];
+    const sectionActions: SectionCommand[] = [];
+
+    for (const [key, category] of Object.entries(effectSections)) {
+      newCategories.push({
+        ...category,
+        effects: await category.effects.reduce(
+          async (arr: ActiveEffectContext[], effect: ActiveEffect5e) => {
+            effect.updateDuration();
+            const { id, name, img, disabled, duration } = effect;
+            const source = await effect.getSource();
+            arr = await arr;
+            arr.push({
+              id,
+              name,
+              img,
+              disabled,
+              duration,
+              source,
+              parent,
+              parentId:
+                effect.target === effect.parent ? null : effect.parent.id,
+              durationParts: duration.remaining
+                ? duration.label.split(', ')
+                : [],
+              hasTooltip: true,
+              uuid: effect.uuid,
+              effect: effect,
+              riders: [],
+              rowActions: EffectRowActionRuntime.getRowActions({
+                app: context.document.sheet,
+                data: {
+                  owner: effect.isOwner,
+                  unlocked: context.unlocked,
+                  editable: context.editable,
+                },
+                rowDocument: effect,
+                sheetDocument: context.document,
+              }),
+            });
+            return arr;
+          },
+
+          [],
+        ),
+        key: key,
+        canCreate: context.editable && !category.isEnchantment,
+        dataset: {}, // TODO: put things that help with effect creation via _addDocument here
+        show: !category.hidden,
+        sectionActions,
+        columns: EffectColumnRuntime.getColumnSpecifications({
+          sheetDocument: context.document,
+          tabId: CONSTANTS.TAB_EFFECTS,
+          sectionKey: key,
+          editable: context.editable,
+          owner: context.document.isOwner,
+          unlocked: context.unlocked,
+        }),
+      });
+    }
+
+    return newCategories;
+  }
+}

@@ -1,0 +1,261 @@
+import {
+  buildTabConfigMap,
+  getActorTabContext,
+  getItemTabContext,
+} from 'src/settings/editors/shared/tab-configuration-functions';
+import type { TabConfigContextEntry } from 'src/settings/editors/shared/tab-configuration.types';
+import { CONSTANTS } from 'src/constants';
+import { FoundryAdapter } from 'src/foundry/foundry-adapter';
+import { CharacterSheetQuadroneRuntime } from 'src/runtime/actor/CharacterSheetQuadroneRuntime.svelte';
+import { CharacterSheetQuadroneSidebarRuntime } from 'src/runtime/actor/CharacterSheetQuadroneSidebarRuntime.svelte';
+import { EncounterSheetQuadroneRuntime } from 'src/runtime/actor/EncounterSheetQuadroneRuntime.svelte';
+import { GroupSheetQuadroneRuntime } from 'src/runtime/actor/GroupSheetQuadroneRuntime.svelte';
+import { NpcSheetQuadroneRuntime } from 'src/runtime/actor/NpcSheetQuadroneRuntime.svelte';
+import { VehicleSheetQuadroneRuntime } from 'src/runtime/actor/VehicleSheetQuadroneRuntime.svelte';
+import { ItemSheetQuadroneRuntime } from 'src/runtime/item/ItemSheetQuadroneRuntime.svelte';
+import { settings } from 'src/settings/settings.svelte';
+import type { TabConfiguration } from 'src/settings/settings.types';
+import {
+  confirmUseDefault,
+  type SettingsEditor,
+} from './settings-editors.svelte';
+
+export type WorldTabConfigurationSettingsEditor = SettingsEditor<
+  TabConfigContextEntry[]
+> & {
+  resetEntryToDefault(
+    documentName: string,
+    documentType: string,
+    docTypeKeyOverride?: string | null,
+  ): void;
+  undoEntryChanges(
+    documentName: string,
+    documentType: string,
+    docTypeKeyOverride?: string | null,
+  ): void;
+};
+
+export function getWorldTabConfigurationSettingsEditor(): WorldTabConfigurationSettingsEditor {
+  const current = $state<TabConfigContextEntry[]>(getConfig());
+
+  let initialSnapshot = $state<string>(JSON.stringify(snapshotConfig(current)));
+
+  const hasChanges = $derived(
+    JSON.stringify(snapshotConfig(current)) !== initialSnapshot,
+  );
+
+  /**
+   * Canonical, order-independent snapshot of every sheet type's tab selection.
+   * SortableListbox rewrites visibilityLevels in display order on mount, so a
+   * raw JSON.stringify of `_config` would always look dirty.
+   */
+  function snapshotConfig(config: TabConfigContextEntry[]) {
+    return $state.snapshot(config);
+  }
+
+  function getConfig(settingOverride?: TabConfiguration) {
+    let setting = settingOverride ?? settings.value.tabConfiguration;
+
+    let config: TabConfigContextEntry[] = [];
+
+    let actorConfigs = setting?.[CONSTANTS.DOCUMENT_NAME_ACTOR];
+
+    config.push(
+      getActorTabContext({
+        runtime: CharacterSheetQuadroneRuntime,
+        type: CONSTANTS.SHEET_TYPE_CHARACTER,
+        settings: actorConfigs?.[CONSTANTS.SHEET_TYPE_CHARACTER],
+      }),
+    );
+
+    const characterSidebarContext = getActorTabContext({
+      runtime: CharacterSheetQuadroneSidebarRuntime,
+      type: CONSTANTS.SHEET_TYPE_CHARACTER,
+      settings:
+        actorConfigs?.[CONSTANTS.WORLD_TAB_CONFIG_KEY_CHARACTER_SIDEBAR],
+      docTypeKeyOverride: CONSTANTS.WORLD_TAB_CONFIG_KEY_CHARACTER_SIDEBAR,
+    });
+
+    characterSidebarContext.title = FoundryAdapter.localize(
+      'TIDY5E.Character.Sidebar.Title',
+    );
+
+    config.push(characterSidebarContext);
+
+    config.push(
+      getActorTabContext({
+        runtime: NpcSheetQuadroneRuntime,
+        type: CONSTANTS.SHEET_TYPE_NPC,
+        settings: actorConfigs?.[CONSTANTS.SHEET_TYPE_NPC],
+      }),
+    );
+
+    config.push(
+      getActorTabContext({
+        runtime: GroupSheetQuadroneRuntime,
+        type: CONSTANTS.SHEET_TYPE_GROUP,
+        settings: actorConfigs?.[CONSTANTS.SHEET_TYPE_GROUP],
+      }),
+    );
+
+    config.push(
+      getActorTabContext({
+        runtime: EncounterSheetQuadroneRuntime,
+        type: CONSTANTS.SHEET_TYPE_ENCOUNTER,
+        settings: actorConfigs?.[CONSTANTS.SHEET_TYPE_ENCOUNTER],
+      }),
+    );
+
+    config.push(
+      getActorTabContext({
+        runtime: VehicleSheetQuadroneRuntime,
+        type: CONSTANTS.SHEET_TYPE_VEHICLE,
+        settings: actorConfigs?.[CONSTANTS.SHEET_TYPE_VEHICLE],
+      }),
+    );
+
+    let itemConfigs = setting?.[CONSTANTS.DOCUMENT_NAME_ITEM];
+
+    let allItemTypes = ItemSheetQuadroneRuntime.getSheetTypes();
+    for (let type of allItemTypes) {
+      config.push(getItemTabContext({ type, settings: itemConfigs?.[type] }));
+    }
+
+    return config;
+  }
+
+  function getDefaultEntry(entry: TabConfigContextEntry) {
+    return {
+      ...entry,
+      tabs: entry.defaultTabs.map((t) => ({ ...t })),
+    };
+  }
+
+  async function save() {
+    let toSave = current.reduce<TabConfiguration>((prev, curr) => {
+      let docName = (prev[curr.documentName] ??= {});
+
+      const defaultMap = new Map(curr.defaultTabs.map((tab) => [tab.id, tab]));
+
+      // When the tab array exactly matches the default, exclude
+      // that sheet type from settings, which represents taking
+      // the default tabs.
+      const matchesDefault =
+        curr.tabs.length === curr.defaultTabs.length &&
+        curr.tabs.every((tab) => {
+          return FoundryAdapter.foundry13Equals(defaultMap.get(tab.id), tab);
+        });
+
+      const hasVisibilityOverride = curr.tabs.some(
+        (l) => l.visibilityLevel != null,
+      );
+
+      if (!matchesDefault || hasVisibilityOverride) {
+        const docTypeKey = curr.docTypeKeyOverride ?? curr.documentType;
+
+        docName[docTypeKey] = {
+          tabs: matchesDefault ? {} : buildTabConfigMap(curr.tabs),
+        };
+      }
+
+      return prev;
+    }, {});
+
+    await FoundryAdapter.setTidySetting('tabConfiguration', toSave);
+  }
+
+  return {
+    get hasChanges() {
+      return hasChanges;
+    },
+
+    resetToDefault() {
+      this.value = this.value.map((entry) => getDefaultEntry(entry));
+    },
+
+    resetEntryToDefault(
+      documentName: string,
+      documentType: string,
+      docTypeKeyOverride: string | null = null,
+    ) {
+      const entry = this.value.find(
+        (x) =>
+          x.documentName === documentName &&
+          x.documentType === documentType &&
+          (x.docTypeKeyOverride ?? null) === (docTypeKeyOverride ?? null),
+      );
+
+      if (!entry) {
+        return;
+      }
+
+      entry.tabs = getDefaultEntry(entry).tabs;
+    },
+
+    async save() {
+      await save();
+      this.value = getConfig();
+      initialSnapshot = JSON.stringify(snapshotConfig(this.value));
+    },
+
+    canUndo: true,
+
+    canUseDefault: true,
+
+    useDefaultLabel: undefined,
+
+    async useDefault() {
+      const proceed = await confirmUseDefault();
+
+      if (!proceed) {
+        return;
+      }
+
+      this.resetToDefault();
+    },
+
+    undoChanges() {
+      const initial = JSON.parse(initialSnapshot) as TabConfigContextEntry[];
+
+      this.value = initial;
+    },
+
+    undoEntryChanges(
+      documentName: string,
+      documentType: string,
+      docTypeKeyOverride: string | null = null,
+    ) {
+      const entry = this.value.find(
+        (x) =>
+          x.documentName === documentName &&
+          x.documentType === documentType &&
+          (x.docTypeKeyOverride ?? null) === (docTypeKeyOverride ?? null),
+      );
+
+      if (!entry) {
+        return;
+      }
+
+      const initial = JSON.parse(initialSnapshot) as TabConfigContextEntry[];
+      const initialEntry =
+        initial.find(
+          (x) =>
+            x.documentName === entry.documentName &&
+            x.documentType === entry.documentType &&
+            (x.docTypeKeyOverride ?? null) ===
+              (entry.docTypeKeyOverride ?? null),
+        ) ?? entry;
+
+      entry.tabs = initialEntry.tabs;
+    },
+
+    get value() {
+      return current;
+    },
+
+    set value(value: TabConfigContextEntry[]) {
+      current.length = 0;
+      current.push(...value);
+    },
+  };
+}

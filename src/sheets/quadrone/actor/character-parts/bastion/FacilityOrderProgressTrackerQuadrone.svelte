@@ -1,0 +1,59 @@
+<script lang="ts">
+  import { FoundryAdapter } from 'src/foundry/foundry-adapter';
+  import type { ChosenFacilityContext } from 'src/types/types';
+  import { TidyHooks } from 'src/foundry/TidyHooks';
+  import type { Item5e } from 'src/types/item.types';
+  import FacilityOrderProgressMeterQuadrone from './FacilityOrderProgressMeterQuadrone.svelte';
+  import { getCharacterSheetQuadroneContext } from 'src/sheets/sheet-context.svelte';
+
+  interface Props {
+    chosen: ChosenFacilityContext;
+  }
+
+  let { chosen }: Props = $props();
+
+  let context = $derived(getCharacterSheetQuadroneContext());
+
+  const localize = FoundryAdapter.localize;
+
+  function onMouseEnterCraft(event: Event, item: Item5e) {
+    TidyHooks.tidy5eSheetsItemHoverOn(event, item);
+  }
+
+  function onMouseLeaveCraft(event: Event, item: Item5e) {
+    TidyHooks.tidy5eSheetsItemHoverOff(event, item);
+  }
+</script>
+
+{#if chosen.progress.max || chosen.executing}
+  <div class="facility-progress-tracker">
+    <div class="font-label-medium color-text-lighter">
+      {localize('DND5E.FACILITY.FIELDS.order.label')}
+    </div>
+    <div class="craft-and-meter theme-dark">
+      {#if chosen.craft}
+        {const itemAttributes = $derived(
+          context.editable
+            ? {
+                'data-action': 'editDocument',
+                'data-uuid': chosen.craft.uuid,
+              }
+            : {},
+        )}
+        <a {...itemAttributes}>
+          <img
+            class="crafting-item"
+            data-uuid={chosen.craft.uuid}
+            onmouseenter={(ev) => onMouseEnterCraft(ev, chosen.craft)}
+            onmouseleave={(ev) => onMouseLeaveCraft(ev, chosen.craft)}
+            src={chosen.craft.img}
+            alt={chosen.craft.name}
+          />
+        </a>
+      {/if}
+
+      <FacilityOrderProgressMeterQuadrone {chosen}
+      ></FacilityOrderProgressMeterQuadrone>
+    </div>
+  </div>
+{/if}

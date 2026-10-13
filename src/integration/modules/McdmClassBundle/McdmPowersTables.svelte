@@ -1,0 +1,209 @@
+<script lang="ts">
+  import TidyItemTableRow from 'src/components/table-quadrone/TidyItemTableRow.svelte';
+  import TidyTable from 'src/components/table-quadrone/TidyTable.svelte';
+  import TidyTableCell from 'src/components/table-quadrone/TidyTableCell.svelte';
+  import TidyTableHeaderCell from 'src/components/table-quadrone/TidyTableHeaderCell.svelte';
+  import TidyTableHeaderRow from 'src/components/table-quadrone/TidyTableHeaderRow.svelte';
+  import { CONSTANTS } from 'src/constants';
+  import type { InlineToggleService } from 'src/features/expand-collapse/InlineToggleService.svelte';
+  import {
+    createSearchResultsState,
+    setSearchResultsContext,
+  } from 'src/features/search/search.svelte';
+  import { SectionVisibility } from 'src/features/sections/SectionVisibility';
+  import { FoundryAdapter } from 'src/foundry/foundry-adapter';
+  import { getContext } from 'svelte';
+  import type { PowersSection } from './McdmClassBundle';
+  import { observeResize } from 'src/features/resize-observation/attachments';
+  import { RowActionRuntimeBase } from 'src/runtime/table-row-actions/RowActionRuntimeBase';
+  import SectionActionsColumnHeader from 'src/sheets/quadrone/item/columns/SectionActionsColumnHeader.svelte';
+  import type { ActorSheetQuadroneContext } from 'src/types/types';
+  import RowActionsColumn from 'src/sheets/quadrone/item/columns/RowActionsColumn.svelte';
+  import TidyTableCustomCells from 'src/components/table-quadrone/parts/TidyTableCustomCells.svelte';
+  import TidyTableCustomHeaderCells from 'src/components/table-quadrone/parts/TidyTableCustomHeaderCells.svelte';
+  import { CustomItemColumnRuntime } from 'src/runtime/table-columns/CustomItemColumnRuntime';
+
+  interface Props {
+    sections: PowersSection[];
+    searchCriteria: string;
+    context: ActorSheetQuadroneContext;
+    tabId: string;
+  }
+
+  let { sections, searchCriteria, context, tabId }: Props = $props();
+
+  let sectionsInlineWidth: number = $state(0);
+
+  function onResize(entry: ResizeObserverEntry) {
+    sectionsInlineWidth = entry.borderBoxSize[0].inlineSize;
+  }
+
+  let inlineToggleService = getContext<InlineToggleService>(
+    CONSTANTS.SVELTE_CONTEXT.INLINE_TOGGLE_SERVICE,
+  );
+
+  let itemToggleMap = $derived(inlineToggleService.map);
+
+  const searchResults = createSearchResultsState();
+  setSearchResultsContext(searchResults);
+
+  $effect(() => {
+    SectionVisibility.syncItemTabSearchResults(searchResults, searchCriteria, {
+      itemContext: context.itemContext,
+      sections,
+      tabId,
+    });
+  });
+
+  const localize = FoundryAdapter.localize;
+</script>
+
+<div class="tidy-table-container" {@attach observeResize(onResize)}>
+  {#each sections as section}
+    {const sectionSearchState = $derived(
+      SectionVisibility.getItemSectionSearchState(section.items, searchResults),
+    )}
+    {const showSection = $derived(
+      section.show &&
+        SectionVisibility.shouldShowItemSection(sectionSearchState, {
+          unlocked: context.unlocked,
+        }),
+    )}
+    {#if showSection}
+      {const rowActionInfo = $derived(
+        RowActionRuntimeBase.getRowActionWidthInfo(
+          section.items,
+          (entry) => context.itemContext[entry.id]?.rowActions,
+          context.unlocked ? section.sectionActions : [],
+        ),
+      )}
+
+      {let hiddenColumns = $derived(
+        CustomItemColumnRuntime.determineHiddenColumns(
+          sectionsInlineWidth - rowActionInfo.widthPx,
+          section.columns,
+        ),
+      )}
+
+      <TidyTable
+        key={section.key}
+        data-custom-section={false}
+        dataset={section.dataset}
+        expandedOverride={sectionSearchState.expandedOverride}
+      >
+        {#snippet header(expanded)}
+          <TidyTableHeaderRow class={['theme-dark']}>
+            <TidyTableHeaderCell primary={true} class="header-label-cell">
+              <h3>
+                {localize(section.label)}
+              </h3>
+              <span class="table-header-count"
+                >{sectionSearchState.visibleItemCount}</span
+              >
+            </TidyTableHeaderCell>
+
+            <TidyTableCustomHeaderCells
+              {section}
+              {expanded}
+              {hiddenColumns}
+              {context}
+            />
+
+            <TidyTableHeaderCell
+              class="header-cell-actions"
+              columnWidth="{rowActionInfo.widthRems}rem"
+              data-tidy-column-key={CONSTANTS.COLUMN_KEY_ROW_ACTIONS}
+            >
+              <SectionActionsColumnHeader
+                {section}
+                maxRowActionsCount={rowActionInfo.maxRowActionsCount}
+                sheetDocument={context.document}
+              />
+            </TidyTableHeaderCell>
+          </TidyTableHeaderRow>
+        {/snippet}
+
+        {#snippet body()}
+          {const itemEntries = $derived(
+            section.items.map((item) => ({
+              item,
+              ctx: context.itemContext[item.id],
+            })),
+          )}
+          {#each itemEntries as { item, ctx }, i (item.id)}
+            {const expanded = $derived(
+              !!itemToggleMap.get(tabId)?.has(item.id),
+            )}
+
+            <TidyItemTableRow
+              {item}
+              hidden={!searchResults.show(item.uuid)}
+              rowClass={[
+                {
+                  expanded,
+                },
+              ]}
+              contextMenu={{
+                type: CONSTANTS.CONTEXT_MENU_TYPE_ITEMS,
+                uuid: item.uuid,
+              }}
+              {ctx}
+            >
+              {#snippet children({ toggleSummary, expanded })}
+                <div class="highlight"></div>
+                <a
+                  class={[
+                    'tidy-table-row-use-button',
+                    { disabled: !context.editable },
+                  ]}
+                  onclick={(ev) =>
+                    context.editable && context.sheet.tryUseItem(item, ev)}
+                >
+                  <img class="item-image" alt={item.name} src={item.img} />
+                  <span class="roll-prompt">
+                    <i class="fa fa-dice-d20"></i>
+                  </span>
+                </a>
+
+                <TidyTableCell primary={true} class="item-label text-cell">
+                  <a class="item-name" onclick={(ev) => toggleSummary()}>
+                    <span class="cell-text">
+                      <span class="cell-name">{item.name}</span>
+                      {#if ctx.subtitle}
+                        <span class="cell-context">{@html ctx.subtitle}</span>
+                      {/if}
+                    </span>
+                    <span class="row-detail-expand-indicator">
+                      <i
+                        class="fa-solid fa-angle-right expand-indicator"
+                        class:expanded
+                      >
+                      </i>
+                    </span>
+                  </a>
+                </TidyTableCell>
+
+                <TidyTableCustomCells
+                  {section}
+                  {ctx}
+                  entry={item}
+                  {hiddenColumns}
+                  {context}
+                />
+
+                <RowActionsColumn
+                  columnWidth="{rowActionInfo.widthRems}rem"
+                  rowActions={ctx.rowActions ?? []}
+                  data={{
+                    item,
+                    ctx,
+                  }}
+                />
+              {/snippet}
+            </TidyItemTableRow>
+          {/each}
+        {/snippet}
+      </TidyTable>
+    {/if}
+  {/each}
+</div>

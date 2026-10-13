@@ -1,0 +1,42 @@
+<script lang="ts">
+  import { FoundryAdapter } from 'src/foundry/foundry-adapter';
+  import type { Item5e } from 'src/types/item.types';
+  import type { ActiveEffectSection, Actor5e } from 'src/types/types';
+
+  let {
+    sheetDocument,
+    section,
+  }: { sheetDocument: Actor5e | Item5e; section: ActiveEffectSection } =
+    $props();
+
+  let localize = FoundryAdapter.localize;
+
+  function onAddClicked(section: ActiveEffectSection) {
+    return FoundryAdapter.addEffect(section.type, sheetDocument);
+  }
+</script>
+
+{#if section.canCreate}
+  <!--svelte-ignore a11y_missing_attribute-->
+  <a
+    class="tidy-table-button"
+    aria-label={localize('DND5E.EFFECT.Action.CreateEffect')}
+    data-tooltip
+    onclick={() => onAddClicked(section)}
+    onkeydown={(ev) =>
+      ev.key === 'Enter' || (ev.key === ' ' && onAddClicked(section))}
+    role="button"
+    tabindex="0"
+    data-keyboard-focus
+  >
+    <i class="fas fa-plus"></i>
+  </a>
+{/if}
+{#if section.disabled}
+  <span class="tidy-table-button">
+    <i
+      class="fa-solid fa-info-circle"
+      data-tooltip="DND5E.EFFECT.Suppressed.Hint"
+    ></i>
+  </span>
+{/if}

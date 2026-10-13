@@ -1,0 +1,492 @@
+import type { UserPreferences } from 'src/features/user-preferences/user-preferences.types';
+import type {
+  ActiveEffectSection,
+  ActivityItemContext,
+  AttunementContext,
+  ChosenFacilityContext,
+  ContainerCapacityContext,
+  CustomContent,
+  DocumentSheetV2Context,
+  GroupableSelectOption,
+  InventorySection,
+  Tab,
+  OccupantContext,
+  TidySectionBase,
+  Utilities,
+} from './types';
+import type {
+  DocumentFilters,
+  RegisteredEquipmentTypeGroup,
+} from 'src/runtime/item/item.types';
+import type { Tidy5eItemSheetQuadrone } from 'src/sheets/quadrone/Tidy5eItemSheetQuadrone.svelte';
+import type { Tidy5eContainerSheetQuadrone } from 'src/sheets/quadrone/Tidy5eContainerSheetQuadrone.svelte';
+import type { Tidy5eItemSheetClassic } from 'src/sheets/classic/Tidy5eItemSheetClassic.svelte';
+import type { Tidy5eContainerSheetClassic } from 'src/sheets/classic/Tidy5eContainerSheetClassic.svelte';
+import type { Activity5e } from 'src/foundry/dnd5e.types';
+import type {
+  ItemAdvancementRowAction,
+  ItemRowAction,
+} from './row-actions.types';
+import type {
+  ActivityColumnSpec,
+  ConfiguredColumnSpecification,
+  ItemAdvancementColumnSpec,
+  SectionColumnSpecifications,
+} from './columns.types';
+
+export type PropertyContext = {
+  active: string[];
+  object: Record<string, true>;
+  options: {
+    label: string;
+    selected: boolean;
+    value: string;
+  }[];
+};
+
+export type ItemFacilityOrdersContext = {
+  available: {
+    value: string;
+    label: string;
+  }[];
+  executable: {
+    value: string;
+    label: string;
+  }[];
+};
+
+export type ItemSheetContext = {
+  activities: {
+    id: string;
+    uuid: string;
+    name: string;
+    sort: number;
+    img: {
+      src: string;
+      svg: boolean;
+    };
+  }[];
+  activationTypes: GroupableSelectOption[];
+  advancement: any;
+  advancementEditable: boolean;
+  affectsPlaceholder: string;
+  baseItems: Record<string, string>;
+  canCraft?: boolean;
+  concealDetails: boolean;
+  config: typeof CONFIG.DND5E;
+  coverOptions: { value: string; label: string }[];
+  craft?: {
+    img: string;
+    name: string;
+    contentLink: string;
+  };
+  customContent: CustomContent[];
+  customEquipmentTypeGroups: RegisteredEquipmentTypeGroup[];
+  data: any;
+  damageTypes:
+    { label: string; value: string; selected: boolean }[] | undefined;
+  defaultAbility: string;
+  denominationOptions: any;
+  dimensions:
+    { size: string; width: string | false; height: string | false } | undefined;
+  document: any;
+  durationUnits: GroupableSelectOption[];
+  editable: boolean;
+  effects: any;
+  enriched: {
+    description: string;
+    unidentified: string;
+    chat: string;
+  };
+  equipmentTypes: GroupableSelectOption[];
+  facilitySubtypes?: Record<string, string>;
+  hasDexModifier: boolean;
+  /**
+   * Represents remaining health as a percentage within the range of `0` to `100`.
+   */
+  healthPercentage: number;
+  identifiedName: string;
+  isEmbedded: boolean;
+  isHarvesting?: boolean;
+  isIdentifiable: boolean;
+  isIdentified: boolean;
+  isPhysical: boolean;
+  item: Item5e;
+  itemDescriptions: ItemDescription[];
+  itemType: string;
+  itemStatus: string | null;
+  itemSubtypes?: Record<string, string>;
+  // TODO: Possibly apply typings here. If it's not feasible, we're better off not wasting time trying to chase after every item's specific labels in TS typings.
+  labels: Record<string, any>;
+  limited: boolean;
+  lockItemQuantity: boolean;
+  modernRules: boolean;
+  options: any;
+  orders?: ItemFacilityOrdersContext;
+  owner: boolean;
+  properties: PropertyContext;
+  rangeTypes: GroupableSelectOption[];
+  recoveryPeriods: GroupableSelectOption[];
+  recoveryTypes: {
+    value: string;
+    label: string;
+  }[];
+  rollData: Record<string, any>;
+  scalarTarget: boolean;
+  sheet: Tidy5eItemSheetClassic; // Modules like Item Piles will make a synthetic preview sheet. In so doing, context.item.sheet is not availables, so using a dedicated sheet prop for sheet needs improves compatibility.
+  source: any;
+  spellcastingMethods: {
+    label: string;
+    value: string;
+  }[];
+  spellProgression: {
+    value: string;
+    label: string;
+    group?: string;
+  }[];
+  system: any;
+  title: string;
+  toggleAdvancementLock: () => Promise<void>;
+  user: any;
+  usesRecovery: {
+    data: UsesRecoveryData;
+    formulaOptions: { label: string; value: string }[] | null;
+  }[];
+  itemOverrides: Set<string>;
+  tabs: Tab[];
+} & DocumentSheetV2Context;
+
+export type ItemNameContext = {
+  value: string;
+  editable: string;
+  field: unknown;
+};
+
+export type ActivitySection = { activities: Activity5e[] } & TidySectionBase;
+
+export type ActivitySectionQuadrone = TidySectionBase & {
+  activities: ActivityItemContext[];
+  columns: SectionColumnSpecifications<
+    ConfiguredColumnSpecification<ActivityColumnSpec>
+  >;
+};
+
+export type ItemSheetQuadroneContext = {
+  /** The target sheet or its parent supports an aggregate/action section (e.g., action-economy Character Sheet tab or statblock NPC tab) */
+  actionSectionEnabled: boolean;
+  activities: ActivitySectionQuadrone[];
+  activationTypes: GroupableSelectOption[];
+  advancement: AdvancementSection[];
+  affectsPlaceholder: string;
+  baseItems: Record<string, string>;
+  canCraft?: boolean;
+  canIdentify: boolean;
+  canPrepare?: boolean;
+  concealDetails: boolean;
+  config: typeof CONFIG.DND5E;
+  coverOptions: { value: string; label: string }[];
+  craft?: {
+    img: string;
+    name: string;
+    contentLink: string;
+  };
+  currentTabId: string;
+  customContent: CustomContent[];
+  customEquipmentTypeGroups: RegisteredEquipmentTypeGroup[];
+  data: any;
+  damageTypes:
+    { label: string; value: string; selected: boolean }[] | undefined;
+  defaultAbility: string;
+  denominationOptions: any;
+  dimensions:
+    { size: string; width: string | false; height: string | false } | undefined;
+  document: any;
+  durationUnits: GroupableSelectOption[];
+  editable: boolean;
+  effects: ActiveEffectSection[];
+  enriched: {
+    description: string;
+    unidentified: string;
+    chat: string;
+  };
+  equipmentTypes: GroupableSelectOption[];
+  facilityContext?: ChosenFacilityContext;
+  facilitySubtypes?: Record<string, string>;
+  /** The data schema of document.system. */
+  fields: any; // One day, maybe we can have types for all the various items. Doesn't seem within reach right now.
+  hasDexModifier: boolean;
+  /**
+   * Represents remaining health as a percentage within the range of `0` to `100`.
+   */
+  healthPercentage: number;
+  identifiedName: string;
+  isEmbedded: boolean;
+  isHarvesting?: boolean;
+  isIdentifiable: boolean;
+  isIdentified: boolean;
+  isPhysical: boolean;
+  item: Item5e;
+  itemDescriptions: ItemDescription[];
+  itemType: string;
+  itemStatus: string | null;
+  itemSubtypes?: Record<string, string>;
+  labels: Record<string, string> & {
+    components: {
+      all: { abbr: string }[];
+      vsm: string;
+      tags: unknown[];
+    };
+  };
+  limited: boolean;
+  modernRules: boolean;
+  options: any;
+  name: ItemNameContext;
+  orders?: ItemFacilityOrdersContext;
+  owner: boolean;
+  primaryAbilities?: { value: string; label: string; selected: boolean }[];
+  properties: PropertyContext;
+  rangeTypes: GroupableSelectOption[];
+  recoveryPeriods: GroupableSelectOption[];
+  recoveryTypes: {
+    label: string;
+    value: string;
+  }[];
+  rollData: Record<string, any>;
+  scalarTarget: boolean;
+  sheet: Tidy5eItemSheetQuadrone; // Modules like Item Piles will make a synthetic preview sheet. In so doing, context.item.sheet is not availables, so using a dedicated sheet prop for sheet needs improves compatibility.
+  source: any;
+  sourceItemLocked: boolean;
+  sourceItemOptions: { text: string; value: string }[];
+  spellcastingMethods: {
+    label: string;
+    value: string;
+  }[];
+  spellProgression: {
+    value: string;
+    label: string;
+    group?: string;
+  }[];
+  subtitle?: string;
+  system: any;
+  title: string;
+  unitsOptions: { value: string; label: string }[];
+  unlocked: boolean;
+  user: any;
+  usesRecovery: {
+    data: UsesRecoveryData;
+    formulaOptions: { label: string; value: string }[] | null;
+    source: any;
+    fields: any;
+    prefix: string;
+  }[];
+  /** The crew slots of a mountable item. */
+  vehicleCrew?: OccupantContext[];
+  tabs: Tab[];
+} & DocumentSheetV2Context;
+
+/**
+ * Data for a recovery profile for an activity's uses.
+ */
+export interface UsesRecoveryData {
+  period: string;
+  type: string;
+  formula: string;
+  recharge?: {
+    options?: {
+      label: string;
+      value: string;
+    }[];
+  };
+}
+
+/**
+ * Field for storing uses data.
+ */
+export interface UsesField {
+  spent: number;
+  max: string;
+  recovery: UsesRecoveryData[];
+}
+
+export type ItemDescription = {
+  field: string;
+  content: string;
+  enriched: string;
+  label: string;
+};
+
+export type Item5e = any;
+export type Advancement5e = any;
+
+export type ItemChatData = {
+  description: string;
+  properties: string[];
+};
+
+export type ContainerItemContext = {
+  activities?: ActivityItemContext[];
+  attunement?: AttunementContext;
+  containerContents?: ContainerContents;
+  favoriteId?: string;
+  isStack?: boolean;
+  totalWeight?: number;
+  includeInCharacterSheetTab?: boolean;
+  rowActions?: ItemRowAction[];
+};
+
+export type ContainerSheetClassicContext = {
+  capacity: ContainerCapacityContext;
+  config: typeof CONFIG.DND5E;
+  concealDetails: boolean;
+  containerContents: ContainerContents;
+  document: Item5e;
+  editable: boolean;
+  enriched: {
+    description: string;
+    unidentified: string;
+    chat: string;
+  };
+  filterData: DocumentFilters;
+  filterPins: Record<string, Set<string>>;
+  item: Item5e;
+  identifiedName: string;
+  items: Item5e[];
+  itemContext: Record<string, ContainerItemContext>;
+  itemDescriptions: ItemDescription[];
+  itemOverrides: Set<string>;
+  itemType: string;
+  isContainer: true;
+  isIdentifiable: boolean;
+  isIdentified: boolean;
+  isPhysical: boolean;
+  labels: Record<string, any>;
+  lockItemQuantity: boolean;
+  lockMoneyChanges: boolean;
+  modernRules: boolean;
+  customContent: CustomContent[];
+  owner: boolean;
+  properties: PropertyContext;
+  rollData: Record<string, any>;
+  sheet: Tidy5eContainerSheetClassic; // Modules like Item Piles will make a synthetic preview sheet. In so doing, context.item.sheet is not availables, so using a dedicated sheet prop for sheet needs improves compatibility.
+  source: any;
+  system: any;
+  tabs: Tab[];
+  utilities: Utilities<ContainerSheetClassicContext>;
+} & DocumentSheetV2Context;
+
+export type CurrencyContext = {
+  key: string;
+  value: number;
+  abbr: string;
+};
+
+export type ContainerSheetQuadroneContext = {
+  /** The target sheet or its parent supports an aggregate/action section (e.g., action-economy Character Sheet tab or statblock NPC tab) */
+  actionSectionEnabled: boolean;
+  capacity: ContainerCapacityContext;
+  canIdentify: boolean;
+  concealDetails: boolean;
+  config: typeof CONFIG.DND5E;
+  containerContents: ContainerContents;
+  currencies: CurrencyContext[];
+  customContent: CustomContent[];
+  currentTabId: string;
+  document: Item5e;
+  editable: boolean;
+  enriched: {
+    description: string;
+    unidentified: string;
+    chat: string;
+  };
+  filterData: DocumentFilters;
+  filterPins: Record<string, Set<string>>;
+  identifiedName: string;
+  isContainer: true;
+  isIdentifiable: boolean;
+  isIdentified: boolean;
+  isPhysical: boolean;
+  item: Item5e;
+  itemContext: Record<string, ContainerItemContext>;
+  itemDescriptions: ItemDescription[];
+  items: Item5e[];
+  itemType: string;
+  labels: Record<string, any>;
+  modernRules: boolean;
+  name: ItemNameContext;
+  owner: boolean;
+  properties: PropertyContext;
+  rollData: Record<string, any>;
+  sheet: Tidy5eContainerSheetQuadrone; // Modules like Item Piles will make a synthetic preview sheet. In so doing, context.item.sheet is not availables, so using a dedicated sheet prop for sheet needs improves compatibility.
+  source: any;
+  system: any;
+  tabs: Tab[];
+  unlocked: boolean;
+  userPreferences: UserPreferences;
+} & DocumentSheetV2Context;
+
+export type ContainerSection = { items: Item5e[] } & TidySectionBase;
+
+export type ContainerContents = {
+  capacity: { max: number; value: number; units: string; pct: number };
+  contents: InventorySection[];
+  currency: Record<string, number>;
+  currencies: CurrencyContext[];
+  itemContext: Record<string, ContainerItemContext>;
+};
+
+export type AdvancementSection = TidySectionBase & {
+  items: AdvancementItemContext[];
+  configured: 'partial' | 'full' | false;
+  columns: SectionColumnSpecifications<
+    ConfiguredColumnSpecification<ItemAdvancementColumnSpec>
+  >;
+};
+
+export type AdvancementItemContext = {
+  /** The ID of the advancement. */
+  id: string;
+  /** An string-based ordering property. Used with a localized sort. */
+  order: string;
+  /** HTML: the name / label of the advancement. */
+  title: string;
+  /** The path to an image or SVG. */
+  icon: string;
+  /** HTML to include on a summary line below the advancement name. */
+  summary: string;
+  /** Denotes a class restriction. Unused here. */
+  classRestriction: string;
+  /**
+   * Denotes whether this advancement has been configured
+   * for the level with which it is associated.
+   */
+  configured: boolean;
+  /**
+   * Extra contextual information, presented often as an icon
+   * with a tooltip; e.g., "Multiclass Only" with multiple helmets icon
+   */
+  tags: {
+    /** Explains the icon; often used as a tooltip. */
+    label: string;
+    /** The path to the font icon class. */
+    iconClass: string;
+  }[];
+  /**
+   * A subclass of ScaleValueType.
+   * For our purposes, this is a means to call `.toString()`.
+   */
+  value?: { toString(): string };
+  /**
+   * Any CSS classes that should be added to a given row.
+   * In svelte, we would do this in the component.
+   */
+  classes: string;
+  /** Available row actions for the current advancement. */
+  rowActions: ItemAdvancementRowAction[];
+};
+
+export type MovementInfo = {
+  label: string;
+  value: number | string;
+  unit: string;
+};
+export type SenseInfo = { label: string; value: number | string; unit: string };

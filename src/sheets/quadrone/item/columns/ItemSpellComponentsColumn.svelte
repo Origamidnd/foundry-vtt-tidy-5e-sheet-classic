@@ -1,0 +1,39 @@
+<script lang="ts">
+  import { getSheetContext } from 'src/sheets/sheet-context.svelte';
+  import type {
+    CharacterSheetQuadroneContext,
+    NpcSheetQuadroneContext,
+    VehicleSheetQuadroneContext,
+  } from 'src/types/types';
+  import type { Item5e } from 'src/types/item.types';
+
+  let { rowDocument }: { rowDocument: Item5e } = $props();
+
+  let context =
+    $derived(
+      getSheetContext<
+        | CharacterSheetQuadroneContext
+        | NpcSheetQuadroneContext
+        | VehicleSheetQuadroneContext
+      >(),
+    );
+</script>
+
+{#if rowDocument.labels.components.all.length}
+  <ul class="unlist spell-components">
+    {#each rowDocument.labels.components.all as component}
+      <li
+        class={[
+          'spell-component',
+          { ['spell-component-special']: component.tag },
+        ]}
+        data-tooltip={context.spellComponentLabels[component.abbr] ??
+          component.abbr}
+      >
+        {component.abbr}
+      </li>
+    {/each}
+  </ul>
+{:else}
+  <span class="color-text-disabled">—</span>
+{/if}

@@ -1,0 +1,284 @@
+<script lang="ts">
+  import { FoundryAdapter } from 'src/foundry/foundry-adapter';
+  import { getVehicleSheetQuadroneContext } from 'src/sheets/sheet-context.svelte';
+  import { SvelteSet } from 'svelte/reactivity';
+  import { untrack } from 'svelte';
+  import Tabs from 'src/components/tabs/Tabs.svelte';
+  import TabContents from 'src/components/tabs/TabContents.svelte';
+  import VehicleSidebar from './vehicle-parts/VehicleSidebar.svelte';
+  import VehicleSubtitle from './vehicle-parts/VehicleSubtitle.svelte';
+  import AbilitiesContainer from './parts/AbilitiesContainer.svelte';
+  import ActorPortrait from './parts/ActorPortrait.svelte';
+  import ActorHealthBar from './parts/ActorHealthBar.svelte';
+  import AbilityScore from './character-parts/AbilityScore.svelte';
+  import TextInputQuadrone from 'src/components/inputs/TextInputQuadrone.svelte';
+  import { UserSheetPreferencesService } from 'src/features/user-preferences/SheetPreferencesService';
+  import { getModifierData } from 'src/utils/formatting';
+
+  let context = $derived(getVehicleSheetQuadroneContext());
+
+  let selectedTabId: string = $derived(context.currentTabId);
+  let extraTabs = new SvelteSet<string>();
+
+  // TODO: Combine these across sheets somehow?
+  // Sidebar expanded setting, updates live.
+  let sidebarExpandedPreference = $derived.by(() => {
+    const type = context.actor.type;
+    return (
+      UserSheetPreferencesService.getByType(type)?.tabs?.[selectedTabId]
+        ?.sidebarExpanded ?? false
+    );
+  });
+
+  // When the user expands or collapses the sidebar, remember their preference
+  //  for this tab.
+  let sidebarExpanded = $derived(sidebarExpandedPreference);
+
+  // Save two-way updates when the sidebar is expanded/collapsed from a sheet.
+  $effect(() => {
+    const expanded = sidebarExpanded;
+    untrack(() => {
+      const type = context.actor.type;
+      const tabId = selectedTabId;
+      const stored =
+        UserSheetPreferencesService.getByType(type)?.tabs?.[tabId]
+          ?.sidebarExpanded;
+      if (stored !== expanded) {
+        UserSheetPreferencesService.setDocumentTypeTabPreference(
+          type,
+          tabId,
+          'sidebarExpanded',
+          expanded,
+        );
+      }
+    });
+  });
+
+  let ini = $derived(getModifierData(context.system.attributes.init.total));
+
+  const localize = FoundryAdapter.localize;
+</script>
+
+<header class="sheet-header flexcol">
+  <div class="sheet-header-content flexrow">
+    <div class="actor-details-container flexcol">
+      <div class="actor-context-row flexrow">
+        <div class="flexcol flex1">
+          <div class="actor-details-name-row">
+            {#if context.unlocked}
+              <TextInputQuadrone
+                field="name"
+                document={context.actor}
+                value={context.actor.name}
+                class="actor-name flex1 h2"
+              />
+            {:else}
+              <h1 class="actor-name flex1">
+                <!-- svelte-ignore a11y_missing_attribute -->
+                <a
+                  data-action="copyInnerText"
+                  class="cursor highlight-on-hover"
+                  role="button"
+                  tabindex="0"
+                  aria-label={localize('TIDY5E.CopyToClipboard')}
+                >
+                  {context.actor.name}
+                </a>
+              </h1>
+            {/if}
+            <!-- <div
+              class={['sheet-header-actions', 'flexrow']}
+              data-tidy-sheet-part="sheet-header-actions-container"
+            >
+              {#if context.editable}
+                <button
+                  type="button"
+                  class="button repair-vehicle button-gold"
+                  data-tooltip="TIDY5E.Vehicle.Repair.Label"
+                  aria-label={localize('TIDY5E.Vehicle.Repair.Label')}
+                  onclick={() => context.actor.repair()}
+                  disabled={!context.editable}
+                >
+                  <i class="fas fa-wrench"></i>
+                  {localize('TIDY5E.Vehicle.Repair.Label')}
+                </button>
+              {/if}
+            </div> -->
+          </div>
+          <VehicleSubtitle />
+        </div>
+      </div>
+      <AbilitiesContainer
+        collapsedAbilityThresholdRems={3.5}
+        smallerAbilityThresholdRems={4}
+        constantHorizontalSpaceRems={20.5}
+      >
+        <div class="ability initiative flexcol">
+          <div
+            class="initiative-score-container"
+            data-tooltip="DND5E.Initiative"
+          >
+            <button
+              type="button"
+              class="button-borderless ability-roll-button"
+              data-action="roll"
+              data-type="initiative"
+              data-has-roll-modes
+            >
+              <span class="ability-abbr"
+                >{localize('DND5E.InitiativeAbbr')}</span
+              >
+              <span class="ability-label-container initiative-bonus">
+                <span class="modifier color-text-lightest">
+                  {ini.sign}
+                </span>
+                <span class="bonus color-text-default">
+                  {ini.value}
+                </span>
+              </span>
+            </button>
+            {#if context.unlocked}
+              <button
+                aria-label={localize('DND5E.InitiativeConfig')}
+                data-tooltip="DND5E.InitiativeConfig"
+                type="button"
+                class="button button-borderless button-icon-only button-config"
+                data-action="showConfiguration"
+                data-config="initiative"
+              >
+                <i class="fas fa-cog"></i>
+              </button>
+            {/if}
+          </div>
+          <div class="ability-labels flexcol">
+            <span class="label font-label-medium color-text-lightest"
+              >{localize('DND5E.AbilityScoreShort')}</span
+            >
+            <span class="divider"></span>
+            <span class="label font-label-medium color-text-lightest"
+              >{localize('DND5E.SavingThrowShort')}</span
+            >
+          </div>
+        </div>
+        {#each context.abilities as ability}
+          <AbilityScore
+            {ability}
+            unlocked={context.unlocked}
+            onScoreChanged={(score) =>
+              context.actor.update({
+                [`system.abilities.${ability.key}.value`]: score,
+              })}
+            disabled={!context.owner}
+          />
+        {/each}
+      </AbilitiesContainer>
+    </div>
+    <div class="actor-vitals-container">
+      <ActorPortrait />
+      <div
+        class={[
+          'actor-vitals npc-vitals theme-dark',
+          { 'view-only': !context.editable },
+        ]}
+      >
+        <ActorHealthBar />
+        {#if context.editable}
+          <div class="actor-vitals-row">
+            <div class="dr-container">
+              <span class="label font-label-medium color-text-gold"> DR </span>
+              <span class="value font-data-medium color-text-default">
+                15
+              </span>
+            </div>
+            <button
+              type="button"
+              class="roll-hp button button-borderless button-icon-only"
+              aria-label="{localize('DND5E.HitDiceRoll')} / {localize(
+                'TIDY5E.HitDiceRollAverage',
+              )}"
+              data-tooltip
+              onclick={() => context.sheet.rollFormula()}
+              oncontextmenu={() => context.sheet.applyAverageHP()}
+              disabled={!context.editable}
+            >
+              <i class="fas fa-dice"></i>
+            </button>
+          </div>
+        {/if}
+      </div>
+      <div
+        class="shield"
+        data-attribution="attributes.ac"
+        data-attribution-caption="DND5E.ArmorClass"
+        data-tooltip-direction="DOWN"
+      >
+        <span class="ac-label font-label-medium color-text-gold"
+          >{localize('DND5E.AC')}</span
+        >
+        <span class="ac-value color-text-default">
+          {context.system.attributes.ac.value}
+        </span>
+        {#if context.unlocked}
+          <button
+            aria-label={localize('DND5E.ARMORCLASS.Action.Configure')}
+            data-tooltip="DND5E.ARMORCLASS.Action.Configure"
+            type="button"
+            class="button button-borderless button-icon-only button-config"
+            data-action="showConfiguration"
+            data-config="armorClass"
+          >
+            <i class="fas fa-cog"></i>
+          </button>
+        {/if}
+      </div>
+    </div>
+  </div>
+  <div class="tabs-row">
+    <!-- svelte-ignore a11y_missing_attribute -->
+    <a
+      role="button"
+      tabindex="0"
+      class="sidebar-toggle button button-borderless"
+      data-tooltip={localize(
+        sidebarExpanded ? 'JOURNAL.ViewCollapse' : 'JOURNAL.ViewExpand',
+      )}
+      onclick={() => (sidebarExpanded = !sidebarExpanded)}
+      onkeydown={(ev) => {
+        if (ev.key === 'Enter' || ev.key === ' ') {
+          sidebarExpanded = !sidebarExpanded;
+        }
+      }}
+    >
+      {#if sidebarExpanded}
+        <i class="fa-solid fa-caret-left"></i>
+        <i class="fa-solid fa-sidebar-flip"></i>
+      {:else}
+        <i class="fa-solid fa-sidebar"></i>
+        <i class="fa-solid fa-caret-right"></i>
+      {/if}
+    </a>
+    <Tabs
+      bind:selectedTabId
+      {extraTabs}
+      tabs={context.tabs}
+      sheet={context.actor.sheet}
+      cssClass="actor-tabs"
+      tabContext={{ context, actor: context.actor }}
+    />
+  </div>
+</header>
+
+<div class="sheet-body">
+  <div class="main-content">
+    <div class={['sidebar flexcol', { expanded: sidebarExpanded }]}>
+      <VehicleSidebar />
+    </div>
+
+    <TabContents
+      tabs={context.tabs}
+      {selectedTabId}
+      {extraTabs}
+      cssClass="tidy-tab-contents"
+    />
+  </div>
+</div>

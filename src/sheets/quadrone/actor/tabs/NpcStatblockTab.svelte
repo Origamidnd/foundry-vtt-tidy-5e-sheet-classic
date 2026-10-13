@@ -1,0 +1,115 @@
+<script lang="ts">
+  import { FoundryAdapter } from 'src/foundry/foundry-adapter';
+  import { getNpcSheetQuadroneContext } from 'src/sheets/sheet-context.svelte';
+  import { getContext } from 'svelte';
+  import { CONSTANTS } from 'src/constants';
+  import type { InlineToggleService } from 'src/features/expand-collapse/InlineToggleService.svelte';
+  import {
+    createSearchResultsState,
+    setSearchResultsContext,
+  } from 'src/features/search/search.svelte';
+  import { SectionVisibility } from 'src/features/sections/SectionVisibility';
+  import ItemsActionBar from '../../shared/ItemsActionBar.svelte';
+  import Legendaries from '../npc-parts/Legendaries.svelte';
+  import StatblockTables from '../../shared/StatblockTables.svelte';
+  import ActorTraitClasses from '../parts/ActorTraitClasses.svelte';
+  import ActorTraitBackground from '../parts/ActorTraitBackground.svelte';
+  import NpcTraitSpecies from '../npc-parts/traits/NpcTraitSpecies.svelte';
+  import SheetPins from '../../shared/SheetPins.svelte';
+  import { buildNpcStatblockSections } from '../../../../settings/tab-options/NpcStatblockTabOptions';
+  import type { FeatureSection, SpellbookSection } from 'src/types/types';
+
+  const localize = FoundryAdapter.localize;
+
+  let context = $derived(getNpcSheetQuadroneContext());
+
+  let tabId = getContext<string>(CONSTANTS.SVELTE_CONTEXT.TAB_ID);
+
+  let searchCriteria = $state('');
+
+  let inlineToggleService = getContext<InlineToggleService>(
+    CONSTANTS.SVELTE_CONTEXT.INLINE_TOGGLE_SERVICE,
+  );
+
+  const searchResults = createSearchResultsState();
+  setSearchResultsContext(searchResults);
+
+  let sections = $derived(
+    buildNpcStatblockSections(context, tabId) as (
+      FeatureSection | SpellbookSection
+    )[],
+  );
+
+  let hasAtLeastOneItem = $derived(
+    sections.some((section) => section.items.length > 0),
+  );
+
+  $effect(() => {
+    SectionVisibility.syncItemTabSearchResults(searchResults, searchCriteria, {
+      itemContext: context.itemContext,
+      sections: sections,
+      tabId: tabId,
+    });
+  });
+</script>
+
+<ItemsActionBar bind:searchCriteria {sections} {tabId} />
+
+<div class="tab-content">
+  {#if context.showLegendariesOnStatblockTab && (context.showLegendaryActions || context.showLegendaryResistances || context.showLairTracker)}
+    <div class="legendaries cards-container flexrow">
+      <Legendaries />
+    </div>
+  {/if}
+
+  <SheetPins />
+
+  {#if !hasAtLeastOneItem}
+    <div class="empty-state-container empty-state-description">
+      {@html localize('TIDY5E.SheetLock.Empty.Hint')}
+    </div>
+  {/if}
+
+  <StatblockTables
+    {sections}
+    {inlineToggleService}
+    itemContext={context.itemContext}
+    {searchCriteria}
+    sheetDocument={context.actor}
+  />
+
+  {#if context.unlocked || context.background || context.species || context.classes.length > 0}
+    <div class="tidy-table character-traits">
+      <div class="tidy-table-header-row">
+        <h3>{localize('TIDY5E.CharacterTraits.Title')}</h3>
+      </div>
+      <div class="list traits">
+        <ActorTraitClasses />
+        <ActorTraitBackground />
+        <NpcTraitSpecies />
+        <div class="list-entry">
+          <div class="list-label">
+            <h4 class="font-weight-label">
+              {localize('DND5E.SpecialTraits')}
+            </h4>
+          </div>
+          <div class="list-content">
+            <div class="list-values trait-item">
+              <button
+                type="button"
+                class="button button-secondary"
+                aria-label={localize('DND5E.FlagsTitle')}
+                data-tooltip
+                data-action="showConfiguration"
+                data-config="special-traits"
+              >
+                <i class="fa-solid fa-star"></i>
+                {localize('DND5E.FlagsTitle')}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  {/if}
+</div>

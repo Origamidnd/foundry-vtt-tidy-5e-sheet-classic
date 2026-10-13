@@ -1,0 +1,22 @@
+<script lang="ts">
+  import { getSheetContext } from 'src/sheets/sheet-context.svelte';
+  import type { SpellSchool } from 'src/foundry/config.types';
+  import Dnd5eIcon from 'src/components/icon/Dnd5eIcon.svelte';
+  import type { Item5e } from 'src/types/item.types';
+
+  let { rowDocument }: { rowDocument: Item5e } = $props();
+
+  let context = $derived(getSheetContext());
+
+  let spellSchoolConfig = $derived<SpellSchool | undefined>(
+    context.config.spellSchools[rowDocument.system.school],
+  );
+</script>
+
+{#if spellSchoolConfig?.icon}
+  <span class="spell-school-icon" data-tooltip={spellSchoolConfig.label}>
+    <Dnd5eIcon src={spellSchoolConfig.icon} />
+  </span>
+{:else}
+  <span class="color-text-disabled">—</span>
+{/if}
