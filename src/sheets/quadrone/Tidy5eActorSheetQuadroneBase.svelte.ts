@@ -1474,7 +1474,7 @@ export function getTidy5eActorSheetQuadroneBase<
       event: DragEvent & { currentTarget: HTMLElement; target: HTMLElement },
       data: { id: string; doc: any },
     ) {
-      const tabId = CONFIG.TIDY5E.utils.getTabIdFromEvent(event);
+      const tabId = CONFIG.TIDY5E_CLASSIC.utils.getTabIdFromEvent(event);
 
       if (!tabId) {
         warn('Unable to pin. Tab ID not found.', false, { event, data });
@@ -1509,7 +1509,7 @@ export function getTidy5eActorSheetQuadroneBase<
         return;
       }
 
-      const tabId = CONFIG.TIDY5E.utils.getTabIdFromEvent(event);
+      const tabId = CONFIG.TIDY5E_CLASSIC.utils.getTabIdFromEvent(event);
 
       if (!tabId) {
         warn('Unable to sort pins. Tab ID not found.', false, { event, srcId });
@@ -2004,7 +2004,7 @@ export function getTidy5eActorSheetQuadroneBase<
         target.closest<HTMLElement>('[data-uuid]')?.dataset ?? {};
       const actor = uuid ? await fromUuid(uuid) : this.document;
       const inspirationSource =
-        await CONFIG.TIDY5E.utils.actorInspiration.tryGetInspirationSource(
+        await CONFIG.TIDY5E_CLASSIC.utils.actorInspiration.tryGetInspirationSource(
           actor,
         );
       return await inspirationSource?.change(-1);
@@ -2154,7 +2154,7 @@ export function getTidy5eActorSheetQuadroneBase<
         target.closest<HTMLElement>('[data-uuid]')?.dataset ?? {};
       const actor = uuid ? await fromUuid(uuid) : this.document;
       const inspirationSource =
-        await CONFIG.TIDY5E.utils.actorInspiration.tryGetInspirationSource(
+        await CONFIG.TIDY5E_CLASSIC.utils.actorInspiration.tryGetInspirationSource(
           actor,
         );
       return await inspirationSource?.change(1);

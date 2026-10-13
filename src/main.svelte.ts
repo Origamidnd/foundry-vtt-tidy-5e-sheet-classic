@@ -41,7 +41,7 @@ Hooks.once('init', () => {
   initSettings();
 
   // Establish Tidy config registry as early as possible.
-  CONFIG.TIDY5E = {
+  CONFIG.TIDY5E_CLASSIC = {
     applications: {
       actor: {
         Tidy5eCharacterSheetQuadrone: Tidy5eCharacterSheetQuadrone,

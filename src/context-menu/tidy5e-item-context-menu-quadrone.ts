@@ -34,7 +34,7 @@ export function getItemContextOptionsQuadrone(
 
   const isInFavorites = !!element.closest('.favorites');
 
-  const tabId = CONFIG.TIDY5E.utils.getTabIdFromElement(element);
+  const tabId = CONFIG.TIDY5E_CLASSIC.utils.getTabIdFromElement(element);
 
   const showActionSectionConfig = SheetSections.showActionSectionConfig(
     item.parent,

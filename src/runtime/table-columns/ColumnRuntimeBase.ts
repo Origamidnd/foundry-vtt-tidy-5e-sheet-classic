@@ -57,7 +57,7 @@ export abstract class ColumnRuntimeBase<
           }
 
           const partitionData =
-            CONFIG.TIDY5E.partitions.columns?.[this.domain]?.[type]?.[tab]?.[
+            CONFIG.TIDY5E_CLASSIC.partitions.columns?.[this.domain]?.[type]?.[tab]?.[
               section
             ];
 
@@ -73,7 +73,7 @@ export abstract class ColumnRuntimeBase<
             [];
 
           for (const [key, data] of Object.entries(partitionData)) {
-            const spec = CONFIG.TIDY5E.features.columns[this.domain][key] as
+            const spec = CONFIG.TIDY5E_CLASSIC.features.columns[this.domain][key] as
               TColumnSpecification | undefined;
 
             if (!spec) {

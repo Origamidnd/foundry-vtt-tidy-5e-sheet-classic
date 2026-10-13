@@ -183,7 +183,7 @@
           class="button button-icon-only flexshrink save-name-button"
           aria-label="Save Alias"
           onclick={(ev) => {
-            const tabId = CONFIG.TIDY5E.utils.getTabIdFromEvent(ev);
+            const tabId = CONFIG.TIDY5E_CLASSIC.utils.getTabIdFromEvent(ev);
 
             if (input && tabId) {
               SheetPinsProvider.setAlias(ctx.document, tabId, input.value);

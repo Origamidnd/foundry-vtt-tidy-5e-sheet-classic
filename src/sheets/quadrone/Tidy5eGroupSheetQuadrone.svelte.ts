@@ -433,7 +433,7 @@ export class Tidy5eGroupSheetQuadrone extends getTidy5eMultiActorSheetQuadroneBa
           ? `oklch(from ${accentColor} calc(l * 1.4) 60% h)`
           : undefined,
         inspirationSource: actor.system.isCharacter
-          ? await CONFIG.TIDY5E.utils.actorInspiration.tryGetInspirationSource(
+          ? await CONFIG.TIDY5E_CLASSIC.utils.actorInspiration.tryGetInspirationSource(
               actor,
             )
           : undefined,

@@ -25,7 +25,7 @@
 }
 ```
 - [ ] Adult Red Dragon has a random Equip row action. For that tab, we shouldn't see such things. Uh oh, is the row action system not flexible enough for that?
-- [ ] // TODO: CONFIG.TIDY5E.utils.setColumnPartition(myPartitionConfig, { tabId: this.powersTabId });
+- [ ] // TODO: CONFIG.TIDY5E_CLASSIC.utils.setColumnPartition(myPartitionConfig, { tabId: this.powersTabId });
 - [ ] Alphabetize all column registry domain props
 - [ ] Pain point - there are cross-domain columns that have to be copy/pasted.
 - [ ] The column runtime services feel redundant. Perhaps ColumnRuntimeBase should be just be ColumnRuntime and accept a domain string?
@@ -70,7 +70,7 @@ Some other options:
 
 ## Stretch
 
-- [ ] Refactoring consideration: `CONFIG.TIDY5E` can replace the concept of the various runtimes. Each can be represented in config, among other useful things like first-class reusable Tidy components. Another bigger refactor opportunity worth pursuing when all other matters have been settled.
+- [ ] Refactoring consideration: `CONFIG.TIDY5E_CLASSIC` can replace the concept of the various runtimes. Each can be represented in config, among other useful things like first-class reusable Tidy components. Another bigger refactor opportunity worth pursuing when all other matters have been settled.
   - This should go into a github issue for tracking
 - [ ] Migrate in the Item section preparers and reduce looping to a single pass over the items.
 - [ ] // TODO: Determine how to make managing row action styles less hardcoded and more configured.

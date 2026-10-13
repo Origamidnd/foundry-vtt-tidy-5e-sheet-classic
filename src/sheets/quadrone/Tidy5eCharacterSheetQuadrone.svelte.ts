@@ -154,7 +154,7 @@ export class Tidy5eCharacterSheetQuadrone extends getTidy5eActorSheetQuadroneBas
     };
 
     let inspirationSource: InspirationSource | undefined =
-      await CONFIG.TIDY5E.utils.actorInspiration.tryGetInspirationSource(
+      await CONFIG.TIDY5E_CLASSIC.utils.actorInspiration.tryGetInspirationSource(
         this.actor,
       );
 

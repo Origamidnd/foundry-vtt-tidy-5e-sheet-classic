@@ -37,7 +37,7 @@ import type {
 import type { Actor5e, InspirationSource } from './types';
 
 /**
- * `CONFIG.TIDY5E`, the configuration backbone of Tidy 5e Sheets. Contains runtime data, components,
+ * `CONFIG.TIDY5E_CLASSIC`, the configuration backbone of Tidy 5e Sheets. Contains runtime data, components,
  * and any data needed to apply dynamic configuration to the module.
  *
  * Update this data from a script or macro while running a Foundry world with Tidy 5e Sheets active
@@ -271,16 +271,16 @@ export type TidyRowActionRegistry = {
 };
 
 export type RowActionRegistryDomain =
-  keyof CONFIG['TIDY5E']['features']['rowActions'];
+  keyof CONFIG['TIDY5E_CLASSIC']['features']['rowActions'];
 
 export type RowActionOf<D extends RowActionRegistryDomain> =
-  CONFIG['TIDY5E']['features']['rowActions'][D][keyof CONFIG['TIDY5E']['features']['rowActions'][D]];
+  CONFIG['TIDY5E_CLASSIC']['features']['rowActions'][D][keyof CONFIG['TIDY5E_CLASSIC']['features']['rowActions'][D]];
 
 export type ColumnRegistryDomain =
-  keyof CONFIG['TIDY5E']['features']['columns'];
+  keyof CONFIG['TIDY5E_CLASSIC']['features']['columns'];
 
 export type ColumnOf<D extends ColumnRegistryDomain> =
-  CONFIG['TIDY5E']['features']['columns'][D][keyof CONFIG['TIDY5E']['features']['columns'][D]];
+  CONFIG['TIDY5E_CLASSIC']['features']['columns'][D][keyof CONFIG['TIDY5E_CLASSIC']['features']['columns'][D]];
 
 export type TidyPublicUtils = {
   actorInspiration: {

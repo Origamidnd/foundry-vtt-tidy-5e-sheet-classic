@@ -190,7 +190,7 @@ export class McdmClassBundleModuleIntegration implements ModuleIntegrationBase {
     ] = filterPins;
 
     // Column Registration
-    const columns = CONFIG.TIDY5E.features.columns.customItem;
+    const columns = CONFIG.TIDY5E_CLASSIC.features.columns.customItem;
 
     columns[`${this.moduleId}-powers-concentration`] = {
       cell: {
@@ -319,8 +319,8 @@ export class McdmClassBundleModuleIntegration implements ModuleIntegrationBase {
 
     // Column Partitioning
 
-    // TODO: CONFIG.TIDY5E.utils.setColumnPartition(myPartitionConfig, { tabId: this.powersTabId });
-    const defaultTypePartitions = (CONFIG.TIDY5E.partitions.columns.customItem[
+    // TODO: CONFIG.TIDY5E_CLASSIC.utils.setColumnPartition(myPartitionConfig, { tabId: this.powersTabId });
+    const defaultTypePartitions = (CONFIG.TIDY5E_CLASSIC.partitions.columns.customItem[
       CONSTANTS.COLUMN_SPEC_TYPE_KEY_DEFAULT
     ] ??= {});
 

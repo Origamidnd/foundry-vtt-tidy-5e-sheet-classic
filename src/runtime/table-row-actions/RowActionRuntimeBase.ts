@@ -22,10 +22,10 @@ export abstract class RowActionRuntimeBase<
   getRowActions(args: ConditionArgs<TRowAction>): TRowAction[] {
     const result = [];
 
-    const rowActions = CONFIG.TIDY5E.partitions.rowActions[this.domain];
+    const rowActions = CONFIG.TIDY5E_CLASSIC.partitions.rowActions[this.domain];
 
     for (const key of rowActions) {
-      const action = CONFIG.TIDY5E.features.rowActions[this.domain][key] as
+      const action = CONFIG.TIDY5E_CLASSIC.features.rowActions[this.domain][key] as
         TRowAction | undefined;
 
       if (action && checkCondition(action, args)) {
