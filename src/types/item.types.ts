@@ -73,6 +73,8 @@ export type ItemSheetContext = {
   baseItems: Record<string, string>;
   canCraft?: boolean;
   concealDetails: boolean;
+  /** The user is the GM and the sheet is in edit mode, so unidentified items are shown in full. */
+  gmEditMode?: boolean;
   config: typeof CONFIG.DND5E;
   coverOptions: { value: string; label: string }[];
   craft?: {
@@ -183,6 +185,8 @@ export type ItemSheetQuadroneContext = {
   canIdentify: boolean;
   canPrepare?: boolean;
   concealDetails: boolean;
+  /** The user is the GM and the sheet is in edit mode, so unidentified items are shown in full. */
+  gmEditMode?: boolean;
   config: typeof CONFIG.DND5E;
   coverOptions: { value: string; label: string }[];
   craft?: {
@@ -338,6 +342,8 @@ export type ContainerSheetClassicContext = {
   capacity: ContainerCapacityContext;
   config: typeof CONFIG.DND5E;
   concealDetails: boolean;
+  /** The user is the GM and the sheet is in edit mode, so unidentified items are shown in full. */
+  gmEditMode?: boolean;
   containerContents: ContainerContents;
   document: Item5e;
   editable: boolean;
@@ -386,6 +392,8 @@ export type ContainerSheetQuadroneContext = {
   capacity: ContainerCapacityContext;
   canIdentify: boolean;
   concealDetails: boolean;
+  /** The user is the GM and the sheet is in edit mode, so unidentified items are shown in full. */
+  gmEditMode?: boolean;
   config: typeof CONFIG.DND5E;
   containerContents: ContainerContents;
   currencies: CurrencyContext[];

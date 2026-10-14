@@ -26,10 +26,16 @@
   }
 
   const localize = FoundryAdapter.localize;
+
+  // Same rule as the new Tidy sheets: flagged as important, or an NPC with class levels.
+  let isImportant = $derived(
+    !!context.actor.system.traits?.important ||
+      (context.actor.system.isNPC && !foundry.utils.isEmpty(context.actor.classes)),
+  );
 </script>
 
 <div class="traits">
-  {#if context.actor.system.traits.important}
+  {#if isImportant}
     <TraitSection
       title={localize('DND5E.HitDice')}
       iconCssClass="fa-solid fa-dice-d{context.system.attributes.hd
@@ -38,9 +44,20 @@
       useConfigureButton={false}
       traitCssClass="counter"
     >
-      <span class="hit-dice-counter">
-        {context.system.attributes.hd.value}/{context.system.attributes.hd.max}
-      </span>
+      {#if context.editable}
+        <button
+          type="button"
+          class="hit-dice-counter hit-dice-rest"
+          title={localize('DND5E.REST.Short.Label')}
+          onclick={() => context.actor.initiateRest({ type: 'short' })}
+        >
+          {context.system.attributes.hd.value}/{context.system.attributes.hd.max}
+        </button>
+      {:else}
+        <span class="hit-dice-counter">
+          {context.system.attributes.hd.value}/{context.system.attributes.hd.max}
+        </span>
+      {/if}
     </TraitSection>
   {/if}
   {#if context.system.attributes?.death && (context.isCharacter || context.actor.system.traits.important)}
@@ -423,6 +440,22 @@
       margin-inline-start: auto;
       margin-inline-end: 0.25rem;
       font-size: 0.75rem;
+    }
+
+    :global(.counter button.hit-dice-rest) {
+      all: unset;
+      flex: 0;
+      margin-inline-start: auto;
+      margin-inline-end: 0.25rem;
+      font-size: 0.75rem;
+      cursor: pointer;
+      color: inherit;
+    }
+
+    :global(.counter button.hit-dice-rest:hover),
+    :global(.counter button.hit-dice-rest:focus-visible) {
+      color: var(--t5e-primary-font-color);
+      text-decoration: underline;
     }
 
     .text-secondary {

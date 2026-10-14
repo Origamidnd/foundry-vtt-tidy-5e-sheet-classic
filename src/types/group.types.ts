@@ -157,6 +157,9 @@ export interface Group5e extends ActorV2 {
   flags: any;
   folder: any;
   img: string;
+  initiateRest(
+    config: Record<string, any> /* RestConfiguration, must include the rest type */
+  ): Promise<unknown /*RestResult*/>;
   items: Item5e[];
   longRest(
     options: Record<string, any> /* RestConfiguration */

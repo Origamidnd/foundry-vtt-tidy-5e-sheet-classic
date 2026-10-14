@@ -3,6 +3,7 @@
   import ExpandableContainer from 'src/components/expandable/ExpandableContainer.svelte';
   import { declareLocation } from 'src/types/location-awareness.types';
   import { setContext, type Snippet } from 'svelte';
+  import { getSearchResultsContext } from 'src/features/search/search.svelte';
   import {
     ExpansionTracker,
     type ExpansionTrackerToggleProvider,
@@ -28,6 +29,8 @@
 
   declareLocation(CONSTANTS.LOCATION_SECTION, key);
 
+  const searchResults = getSearchResultsContext();
+
   const sectionExpansionTracker = ExpansionTracker.getOrInit(
     CONSTANTS.SVELTE_CONTEXT.SECTION_EXPANSION_TRACKER,
   );
@@ -41,14 +44,23 @@
       () => {
         return {
           expanded,
-          toggle: () => sectionExpansionTracker.toggle(key, tabId, location),
+          toggle: () => {
+            // While searching, sections stay open so the results are visible.
+            if (searchResults.isSearching) {
+              return;
+            }
+
+            sectionExpansionTracker.toggle(key, tabId, location);
+          },
         };
       },
     );
   }
 
   let expanded = $derived(
-    !toggleable || sectionExpansionTracker.isExpanded(key, tabId, location),
+    !toggleable ||
+      searchResults.isSearching ||
+      sectionExpansionTracker.isExpanded(key, tabId, location),
   );
 </script>
 

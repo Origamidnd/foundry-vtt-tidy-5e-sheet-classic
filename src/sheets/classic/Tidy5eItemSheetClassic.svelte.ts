@@ -305,8 +305,12 @@ export class Tidy5eItemSheetClassic extends getTidyExtensibleDocumentSheetMixin(
         { parent: this.item },
       ),
 
+      // Players always see unidentified items concealed. The GM sees them
+      // concealed too, until the sheet is switched to edit mode.
       concealDetails:
-        !game.user.isGM && this.document.system.identified === false,
+        this.document.system.identified === false &&
+        !(game.user.isGM && this.sheetMode === CONSTANTS.SHEET_MODE_EDIT),
+      gmEditMode: game.user.isGM && this.sheetMode === CONSTANTS.SHEET_MODE_EDIT,
 
       toggleAdvancementLock: this.toggleAdvancementLock.bind(this),
 

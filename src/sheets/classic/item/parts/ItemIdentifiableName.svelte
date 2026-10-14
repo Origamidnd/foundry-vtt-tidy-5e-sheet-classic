@@ -10,7 +10,7 @@
   const localize = FoundryAdapter.localize;
 </script>
 
-{#if context.system.identified}
+{#if context.system.identified || context.gmEditMode}
   <TextInput
     id="{appId}-name"
     document={context.item}

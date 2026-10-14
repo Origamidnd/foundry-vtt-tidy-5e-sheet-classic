@@ -278,8 +278,12 @@ export class Tidy5eContainerSheetClassic extends getTidyExtensibleDocumentSheetM
     const owner = this.item.isOwner;
     const context: ContainerSheetClassicContext = {
       capacity: await this.item.system.computeCapacity(),
+      // Players always see unidentified items concealed. The GM sees them
+      // concealed too, until the sheet is switched to edit mode.
       concealDetails:
-        !game.user.isGM && this.document.system.identified === false,
+        this.document.system.identified === false &&
+        !(game.user.isGM && this.sheetMode === CONSTANTS.SHEET_MODE_EDIT),
+      gmEditMode: game.user.isGM && this.sheetMode === CONSTANTS.SHEET_MODE_EDIT,
       containerContents: await Container.getContainerContents(this, this.item, {
         unlocked: documentSheetContext.unlocked,
         owner,

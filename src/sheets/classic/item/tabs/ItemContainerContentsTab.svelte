@@ -4,6 +4,7 @@
   import { getContext } from 'svelte';
   import CapacityBar from 'src/sheets/classic/container/CapacityBar.svelte';
   import Currency from 'src/sheets/classic/actor/Currency.svelte';
+  import TransferCurrencyButton from 'src/components/buttons/TransferCurrencyButton.svelte';
   import UtilityToolbar from 'src/components/utility-bar/UtilityToolbar.svelte';
   import UtilityToolbarCommand from 'src/components/utility-bar/UtilityToolbarCommand.svelte';
   import Search from 'src/components/utility-bar/Search.svelte';
@@ -42,6 +43,7 @@
   setSearchResultsContext(searchResults);
 
   $effect(() => {
+    searchResults.criteria = searchCriteria;
     searchResults.uuids = ItemVisibility.getItemsToShowAtDepth({
       criteria: searchCriteria,
       itemContext: context.itemContext,
@@ -57,6 +59,14 @@
   );
 
   let menuOpen = $state(false);
+
+  let currencies = $derived(
+    Object.entries(CONFIG.DND5E.currencies).map(([key, currency]: [string, any]) => ({
+      key,
+      value: (context.item.system.currency?.[key] ?? 0) as number,
+      abbr: (currency?.abbreviation ?? key) as string,
+    })),
+  );
 
   // TODO: Figure out how to avoid duplicating the recursive inline container section config :/
   let configuredContents = $derived(
@@ -74,6 +84,11 @@
 <div class="container-contents-wrapper">
   <div role="presentation" class="currency-wrapper">
     <Currency document={context.item} />
+    <TransferCurrencyButton
+      container={context.item}
+      {currencies}
+      class="classic-transfer-currency"
+    />
   </div>
 
   <UtilityToolbar>
@@ -180,5 +195,12 @@
     padding-right: 0.75rem;
     padding-top: 0.25rem;
     margin-block-end: 0.25rem;
+  }
+
+  .currency-wrapper :global(.classic-transfer-currency) {
+    margin-top: 0.25rem;
+    width: 100%;
+    font-size: 0.75rem;
+    cursor: pointer;
   }
 </style>

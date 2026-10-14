@@ -174,6 +174,26 @@
     {/if}
 
     <div class="flex-column small-gap">
+      {#if context.gmEditMode && 'identified' in context.system && context.system.unidentified}
+        <div class="form-group section stretch">
+          <div
+            class="properties-header flex-grow-1 flex-row extra-small-gap justify-content-space-between align-items-center"
+          >
+            <label for="{appId}-unidentified-name"
+              >{localize('DND5E.NameUnidentified')}</label
+            >
+          </div>
+          <TextInput
+            id="{appId}-unidentified-name"
+            document={context.item}
+            field="system.unidentified.name"
+            placeholder={localize('DND5E.NameUnidentified')}
+            value={context.system.unidentified.name ?? ''}
+            selectOnFocus={true}
+            disabled={!context.editable}
+          />
+        </div>
+      {/if}
       <div class="form-group section stretch">
         <div
           class="properties-header flex-grow-1 flex-row extra-small-gap justify-content-space-between align-items-center"

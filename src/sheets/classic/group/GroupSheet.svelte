@@ -118,24 +118,17 @@
           <i class="fa-solid fa-location-dot"></i>
           {localize('DND5E.Group.PlaceMembers')}
         </button>
-        <button
-          type="button"
-          class="group-action-button flex-row small-gap rest-button flex-grow-0 flex-basis-max-content"
-          onclick={() => context.actor.shortRest({ advanceTime: true })}
-          tabindex={settings.value.useAccessibleKeyboardSupport ? 0 : -1}
-        >
-          <i class="fa-solid fa-utensils"></i>
-          {localize('DND5E.REST.Short.Label')}
-        </button>
-        <button
-          type="button"
-          class="group-action-button flex-row small-gap rest-button flex-grow-0 flex-basis-max-content"
-          onclick={() => context.actor.longRest({ advanceTime: true })}
-          tabindex={settings.value.useAccessibleKeyboardSupport ? 0 : -1}
-        >
-          <i class="fa-solid fa-campground"></i>
-          {localize('DND5E.REST.Long.Label')}
-        </button>
+        {#each Object.entries<{ label: string; icon: string }>(CONFIG.DND5E.restTypes ?? {}) as [key, restType] (key)}
+          <button
+            type="button"
+            class="group-action-button flex-row small-gap rest-button flex-grow-0 flex-basis-max-content"
+            onclick={() => context.actor.initiateRest({ type: key })}
+            tabindex={settings.value.useAccessibleKeyboardSupport ? 0 : -1}
+          >
+            <i class={restType.icon}></i>
+            {localize(restType.label)}
+          </button>
+        {/each}
       </div>
     {/if}
   </div>

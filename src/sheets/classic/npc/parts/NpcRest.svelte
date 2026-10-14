@@ -6,6 +6,47 @@
   let context = $derived(getNpcSheetContext());
 
   const localize = FoundryAdapter.localize;
+
+  // Rest buttons come from the system config, so rest types added by modules show up too.
+  let restTypes = $derived(
+    Object.entries<{ label: string; icon: string }>(
+      CONFIG.DND5E.restTypes ?? {},
+    ),
+  );
+
+  // Keep the Classic look for the two standard rest types.
+  const classicRestIcons: Record<string, string> = {
+    short: 'fas fa-hourglass-half',
+    long: 'fas fa-hourglass-end',
+  };
+
+  let canRefresh = $derived(FoundryAdapter.userIsGm() && context.editable);
+
+  let buttonCount = $derived(restTypes.length + (canRefresh ? 1 : 0));
+
+  let tabindex = $derived(
+    !settings.value.useDefaultSheetHpTabbing &&
+      settings.value.useAccessibleKeyboardSupport
+      ? 0
+      : -1,
+  );
+
+  function rest(type: string) {
+    context.actor.initiateRest({
+      type,
+      chat: settings.value.showNpcRestInChat,
+    });
+  }
+
+  // A quiet long rest: restores everything without a dialog or a chat message.
+  function refresh() {
+    context.actor._rest({
+      type: 'long',
+      dialog: false,
+      chat: false,
+      newDay: true,
+    });
+  }
 </script>
 
 <div
@@ -13,42 +54,33 @@
   class:has-rounded-portrait={context.useRoundedPortraitStyle}
   title={localize('TIDY5E.RestHint')}
 >
-  <div class="resting">
+  <div class="resting" style:--rest-button-count={buttonCount}>
     <span class="resting-icon">
       <i class="rest-icon fas fa-bed"></i>
     </span>
-    <button
-      type="button"
-      class="rest short-rest inline-icon-button"
-      title={localize('TIDY5E.ShortRest')}
-      onclick={() =>
-        context.actor.shortRest({
-          chat: settings.value.showNpcRestInChat,
-        })}
-      disabled={!context.editable}
-      tabindex={!settings.value.useDefaultSheetHpTabbing &&
-      settings.value.useAccessibleKeyboardSupport
-        ? 0
-        : -1}
-    >
-      <i class="fas fa-hourglass-half"></i>
-    </button>
-    <button
-      type="button"
-      class="rest long-rest inline-icon-button"
-      title={localize('TIDY5E.LongRest')}
-      onclick={() =>
-        context.actor.longRest({
-          chat: settings.value.showNpcRestInChat,
-        })}
-      disabled={!context.editable}
-      tabindex={!settings.value.useDefaultSheetHpTabbing &&
-      settings.value.useAccessibleKeyboardSupport
-        ? 0
-        : -1}
-    >
-      <i class="fas fa-hourglass-end"></i>
-    </button>
+    {#each restTypes as [key, restType] (key)}
+      <button
+        type="button"
+        class="rest {key}-rest inline-icon-button"
+        title={localize(restType.label)}
+        onclick={() => rest(key)}
+        disabled={!context.editable}
+        {tabindex}
+      >
+        <i class={classicRestIcons[key] ?? restType.icon}></i>
+      </button>
+    {/each}
+    {#if canRefresh}
+      <button
+        type="button"
+        class="rest refresh-rest inline-icon-button"
+        title={localize('TIDY5E.NPC.Refresh.label')}
+        onclick={refresh}
+        {tabindex}
+      >
+        <i class="fa-solid fa-arrows-rotate"></i>
+      </button>
+    {/if}
   </div>
 </div>
 
@@ -74,7 +106,8 @@
 
     &:hover,
     &:focus-within {
-      width: 5.875rem;
+      // icon + margin + borders, plus one slot per button (two buttons = 5.875rem)
+      width: calc(2.125rem + var(--rest-button-count, 2) * 1.875rem);
     }
 
     .rest {
