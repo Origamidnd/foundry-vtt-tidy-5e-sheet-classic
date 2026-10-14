@@ -1748,7 +1748,11 @@ export function getTidyExtensibleDocumentSheetMixin<
         return;
       }
 
-      const container = actor.items.get(itemId);
+      // The container can be nested inside another container, which `actor.items` does not list.
+      // On a container's own sheet, the sheet document is the container.
+      const container =
+        actor.items.get(itemId) ??
+        (this.document?.id === itemId ? this.document : undefined);
 
       if (!container) {
         warn(`Container ${itemId} not found on this actor.`);
