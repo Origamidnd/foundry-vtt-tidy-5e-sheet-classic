@@ -1,5 +1,13 @@
 {
   "TIDY5E.ModuleName": "Tidy 5e",
+  "TIDY5E.NPC": {
+    "Refresh": {
+      "label": "Обновить все предметы и умения NPC",
+      "Group": {
+        "label": "Обновить NPC"
+      }
+    }
+  },
   "TIDY5E.Advancement": {
     "ConfigurationActionDisable": "Отключение настройки",
     "ConfigurationModeEnabled": "Настройка включена",
