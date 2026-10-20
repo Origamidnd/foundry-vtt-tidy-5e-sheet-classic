@@ -88,6 +88,27 @@ export function getMaxPreparedSpellsSampleFormulas(): MaxPreparedSpellFormula[] 
   ];
 }
 
+/**
+ * Actor-wide bonus formula to attack rolls of the given type (msak, rsak, mwak, rwak).
+ * dnd5e 6 moved it from `bonuses.<type>.attack` to `rolls.attack.<type>.bonus`
+ * (plus a bonus shared by all attacks in `rolls.attack.bonus`); older versions only have the old path.
+ */
+export function getActorAttackBonusFormula(
+  actor: Actor5e,
+  type: 'msak' | 'rsak' | 'mwak' | 'rwak'
+): string {
+  const system = actor?.system ?? {};
+  const parts = [
+    system.rolls?.attack?.bonus,
+    system.rolls?.attack?.[type]?.bonus,
+    system.bonuses?.[type]?.attack,
+  ]
+    .map((part: unknown) => (part ?? '').toString().trim())
+    .filter((part: string) => part !== '');
+
+  return parts.length ? parts.join(' + ') : '0';
+}
+
 export function calculateSpellAttackAndDc(
   actor: Actor5e,
   spellClass: Item5e
@@ -107,7 +128,7 @@ export function calculateSpellAttackAndDc(
     const spellAttackMod = prof + abilityMod;
 
     const rawRsak = Roll.replaceFormulaData(
-      actor.system.bonuses.rsak.attack,
+      getActorAttackBonusFormula(actor, 'rsak'),
       rollData,
       { missing: 0, warn: false }
     );
@@ -121,7 +142,7 @@ export function calculateSpellAttackAndDc(
     }
 
     let rawMsak = Roll.replaceFormulaData(
-      actor.system.bonuses.msak.attack,
+      getActorAttackBonusFormula(actor, 'msak'),
       rollData,
       { missing: 0, warn: false }
     );
@@ -282,7 +303,7 @@ export function getDcTooltip(actor: Actor5e, spellAbility: string) {
     )})`;
   }
 
-  const rawBonus = actor.system.bonuses.spell.dc?.toString()?.trim();
+  const rawBonus = actor.system.bonuses?.spell?.dc?.toString()?.trim();
   if (!isNil(rawBonus, '') && Roll.validate(rawBonus)) {
     const bonusRoll = new Roll(rawBonus);
     bonusRoll.evaluateSync({ allowInteractive: false });
@@ -389,8 +410,11 @@ function getSpellAttackRoll(
   rollData.prof = actor.system.attributes.prof;
 
   // Actor-level global bonus to attack rolls
-  const actorBonusAttack = actor.system.bonuses?.[effectiveAttackType]?.attack;
-  if (actorBonusAttack) {
+  const actorBonusAttack = getActorAttackBonusFormula(
+    actor,
+    effectiveAttackType as 'msak' | 'rsak' | 'mwak' | 'rwak'
+  );
+  if (actorBonusAttack && actorBonusAttack !== '0') {
     parts.push(actorBonusAttack);
   }
 

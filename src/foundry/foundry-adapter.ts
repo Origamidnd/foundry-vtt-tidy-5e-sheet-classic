@@ -20,7 +20,10 @@ import { TidyHooks } from './TidyHooks';
 import { isNil } from 'src/utils/data';
 import { clamp } from 'src/utils/numbers';
 import { processInputChangeDelta } from 'src/utils/form';
-import { calculateSpellAttackAndDc } from 'src/utils/formula';
+import {
+  calculateSpellAttackAndDc,
+  getActorAttackBonusFormula,
+} from 'src/utils/formula';
 import type { Activity5e } from './dnd5e.types';
 import type { ClassValue } from 'svelte/elements';
 import type { getTidyExtensibleDocumentSheetMixin } from 'src/mixins/TidyDocumentSheetMixin.svelte';
@@ -467,7 +470,7 @@ export const FoundryAdapter = {
   ) {
     let actor = context.actor;
     let formula = Roll.replaceFormulaData(
-      actor.system.bonuses.rsak.attack,
+      getActorAttackBonusFormula(actor, 'rsak'),
       actor.getRollData(),
       { missing: 0, warn: false },
     );

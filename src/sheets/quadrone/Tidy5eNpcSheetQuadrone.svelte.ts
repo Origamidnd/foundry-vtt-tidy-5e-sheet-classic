@@ -41,6 +41,7 @@ import { InventoryRowActionRuntime } from 'src/runtime/table-row-actions/Invento
 import { SpellRowActionRuntime } from 'src/runtime/table-row-actions/SpellRowActionRuntime.svelte';
 import { FeatureRowActionRuntime } from 'src/runtime/table-row-actions/FeatureRowActionRuntime.svelte';
 import { FeatureColumnRuntime } from 'src/runtime/table-columns/FeatureColumnRuntime';
+import { getActorAttackBonusFormula } from 'src/utils/formula';
 
 export class Tidy5eNpcSheetQuadrone extends getTidy5eActorSheetQuadroneBase<NpcSheetQuadroneContext>(
   CONSTANTS.SHEET_TYPE_NPC,
@@ -651,9 +652,15 @@ export class Tidy5eNpcSheetQuadrone extends getTidy5eActorSheetQuadroneBase<NpcS
       return classSpellcasting;
     }
 
-    const { abilities, attributes, bonuses } = this.actor.system;
-    const msak = dnd5e.utils.simplifyBonus(bonuses.msak.attack, rollData);
-    const rsak = dnd5e.utils.simplifyBonus(bonuses.rsak.attack, rollData);
+    const { abilities, attributes } = this.actor.system;
+    const msak = dnd5e.utils.simplifyBonus(
+      getActorAttackBonusFormula(this.actor, 'msak'),
+      rollData,
+    );
+    const rsak = dnd5e.utils.simplifyBonus(
+      getActorAttackBonusFormula(this.actor, 'rsak'),
+      rollData,
+    );
     const ability = attributes.spellcasting;
     const spellAbility = abilities[ability];
     const abilityModValue = spellAbility?.mod ?? 0;
