@@ -8,6 +8,9 @@
       }
     }
   },
+  "TIDY5E.CLASSIC": {
+    "AddFromCompendium": "Добавить: {name} из библиотеки"
+  },
   "TIDY5E.Advancement": {
     "ConfigurationActionDisable": "Отключение настройки",
     "ConfigurationModeEnabled": "Настройка включена",

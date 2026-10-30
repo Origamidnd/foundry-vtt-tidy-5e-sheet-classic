@@ -640,6 +640,7 @@ export class Tidy5eGroupSheetClassic extends getTidy5eActorSheetBaseMixin(
           CONSTANTS.PERMISSION_OBSERVER,
         ),
         senses: [],
+        movement: [],
         conditionImmunities: [],
         topSkills: [],
       });
@@ -713,6 +714,16 @@ export class Tidy5eGroupSheetClassic extends getTidy5eActorSheetBaseMixin(
               (c: string, i: number) => (tags[`custom${i + 1}`] = c.trim()),
             );
         ctx.senses = Object.values(tags);
+
+        // Member Movement
+        ctx.movement = Object.values(
+          FoundryAdapter.getMovementInfo(
+            member.system.attributes.movement ?? {},
+          ),
+        ).map(
+          (info) =>
+            `${game.i18n.localize(info.label)} ${info.value} ${info.unit}`,
+        );
 
         // Member Condition Immunities
         const conditionImmunities: string[] = [];

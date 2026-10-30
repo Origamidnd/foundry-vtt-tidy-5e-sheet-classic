@@ -89,6 +89,19 @@
               {/if}
             </span>
           </div>
+          {#if ctx.movement.length}
+            <div class="flex-row extra-small-gap">
+              <span>
+                <i
+                  class="fas fa-person-running fa-fw text-body-secondary"
+                  title={localize('DND5E.Movement')}
+                ></i>
+              </span>
+              <span>
+                {ctx.movement.join(', ')}
+              </span>
+            </div>
+          {/if}
           {#if ctx.conditionImmunities.length}
             <div class="flex-row extra-small-gap">
               <span>

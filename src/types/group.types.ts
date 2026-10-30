@@ -122,6 +122,7 @@ export interface GroupMemberContext {
   index: number;
   canObserve: boolean;
   senses: string[];
+  movement: string[];
   conditionImmunities: string[];
   perception?: GroupMemberSkillInfo;
   topSkills: GroupMemberSkillInfo[];
