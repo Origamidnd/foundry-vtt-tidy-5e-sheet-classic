@@ -8,6 +8,9 @@
       }
     }
   },
+  "TIDY5E.CLASSIC": {
+    "AddFromCompendium": "Add {name} from Compendium"
+  },
   "TIDY5E.Advancement": {
     "ConfigurationActionDisable": "Disable Configuration",
     "ConfigurationModeEnabled": "Configuration Enabled",

@@ -6,6 +6,7 @@
     TidySectionBase,
   } from 'src/types/types';
   import ItemCreateButton from '../item-list/ItemCreateButton.svelte';
+  import ItemCompendiumBrowseButton from '../item-list/ItemCompendiumBrowseButton.svelte';
   import { ActorItemRuntime } from 'src/runtime/ActorItemRuntime';
   import { FoundryAdapter } from 'src/foundry/foundry-adapter';
   import { settings } from 'src/settings/settings.svelte';
@@ -80,6 +81,17 @@
     {:else}
       <ItemCreateButton dataset={section.dataset} {actor} {create} />
     {/if}
+  {/if}
+  {#if isItem && canCreate}
+    {const sectionTypes = $derived(
+      section.custom?.creationItemTypes ??
+        (section.dataset?.type ? [section.dataset.type] : []),
+    )}
+    <ItemCompendiumBrowseButton
+      {actor}
+      {sectionTypes}
+      dataset={section.dataset}
+    />
   {/if}
   {#each customCommands as command}
     <button
