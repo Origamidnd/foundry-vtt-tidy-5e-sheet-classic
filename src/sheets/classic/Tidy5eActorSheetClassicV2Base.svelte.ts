@@ -1,3 +1,4 @@
+import { SpellScroll } from 'src/features/spell-scroll/SpellScroll';
 import ClassicTabSelectionFormApplication from 'src/applications/classic-tab-selection/ClassicTabSelectionFormApplication.svelte';
 import { ThemeSettingsFormApplication } from 'src/applications/classic-theme/ThemeSettingsFormApplication.svelte';
 import { CONSTANTS } from 'src/constants';
@@ -1079,8 +1080,15 @@ export function getTidy5eActorSheetClassicV2Base<
 
       // Create the owned items & contents as normal
       const toCreate = await dnd5e.documents.Item5e.createWithContents(items, {
-        transformFirst: (item: Item5e) =>
-          this._onDropSingleItem(item.toObject(), event),
+        transformFirst: (item: Item5e) => {
+          const options: Record<string, any> = {};
+
+          if (item.pack) {
+            options.compendiumUuid = item.uuid;
+          }
+
+          return this._onDropSingleItem(item.toObject(), event, options);
+        },
       });
 
       const created = await dnd5e.documents.Item5e.createDocuments(toCreate, {
@@ -1106,6 +1114,7 @@ export function getTidy5eActorSheetClassicV2Base<
     async _onDropSingleItem(
       itemData: any,
       event: DragEvent,
+      options: { compendiumUuid?: string } = {},
     ): Promise<object | boolean> {
       const unsupportedItemTypes: Set<string> =
         //@ts-expect-error
@@ -1138,15 +1147,9 @@ export function getTidy5eActorSheetClassicV2Base<
           this.actor.system.isVehicle ||
           this.actor.system.isGroup)
       ) {
-        const options: Record<string, unknown> = {};
-
-        if (settings.value.includeFlagsInSpellScrollCreation) {
-          options.flags = itemData.flags;
-        }
-
-        const scroll = await dnd5e.documents.Item5e.createScrollFromSpell(
+        const scroll = await SpellScroll.create(
           itemData,
-          options,
+          options.compendiumUuid,
         );
 
         return scroll?.toObject?.() ?? false;

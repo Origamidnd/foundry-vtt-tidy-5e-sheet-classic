@@ -1,3 +1,4 @@
+import { SpellScroll } from 'src/features/spell-scroll/SpellScroll';
 import { CONSTANTS } from 'src/constants';
 import { FoundryAdapter } from 'src/foundry/foundry-adapter';
 import { settings } from 'src/settings/settings.svelte';
@@ -538,6 +539,7 @@ export class Tidy5eVehicleSheet
   async _onDropSingleItem(
     itemData: any,
     event: DragEvent & { target: HTMLElement; currentTarget: HTMLElement },
+    options: { compendiumUuid?: string } = {},
   ) {
     const cargoTypes = Inventory.getInventoryTypes();
     const isCargo =
@@ -547,21 +549,12 @@ export class Tidy5eVehicleSheet
 
     // Create a Consumable spell scroll on the Inventory tab
     if (itemData.type === 'spell') {
-      const options: Record<string, unknown> = {};
+      const scroll = await SpellScroll.create(itemData, options.compendiumUuid);
 
-      if (settings.value.includeFlagsInSpellScrollCreation) {
-        options.flags = itemData.flags;
-      }
-
-      const scroll = await dnd5e.documents.Item5e.createScrollFromSpell(
-        itemData,
-        options,
-      );
-
-      return scroll.toObject();
+      return scroll?.toObject?.() ?? false;
     }
 
-    return await super._onDropSingleItem.call(this, itemData, event);
+    return await super._onDropSingleItem.call(this, itemData, event, options);
   }
 
   async _onDropActor(

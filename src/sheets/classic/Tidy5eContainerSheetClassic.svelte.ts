@@ -1,3 +1,4 @@
+import { SpellScroll } from 'src/features/spell-scroll/SpellScroll';
 import { CONSTANTS } from 'src/constants';
 import { InlineToggleService } from 'src/features/expand-collapse/InlineToggleService.svelte';
 import { ItemFilterService } from 'src/features/filtering/ItemFilterService.svelte';
@@ -555,12 +556,7 @@ export class Tidy5eContainerSheetClassic extends getTidyExtensibleDocumentSheetM
    */
   async _onDropSingleItem(itemData: any, { container, depth, event }: any) {
     if (itemData.type === CONSTANTS.ITEM_TYPE_SPELL) {
-      if (settings.value.includeFlagsInSpellScrollCreation) {
-        itemData.flags = itemData.flags;
-      }
-
-      const scroll =
-        await dnd5e.documents.Item5e.createScrollFromSpell(itemData);
+      const scroll = await SpellScroll.create(itemData);
 
       return scroll?.toObject?.() ?? false;
     }

@@ -1,3 +1,4 @@
+import { SpellScroll } from 'src/features/spell-scroll/SpellScroll';
 import { FoundryAdapter } from 'src/foundry/foundry-adapter';
 import { type DropEffectValue } from './DragAndDropBaseMixin';
 import type { Item5e } from 'src/types/item.types';
@@ -248,8 +249,15 @@ export function getTidy5eActorSheetBaseMixin(BaseApplication: any) {
 
       // Create the owned items & contents as normal
       const toCreate = await dnd5e.documents.Item5e.createWithContents(items, {
-        transformFirst: (item: Item5e) =>
-          this._onDropSingleItem(item.toObject(), event),
+        transformFirst: (item: Item5e) => {
+          const options: Record<string, any> = {};
+
+          if (item.pack) {
+            options.compendiumUuid = item.uuid;
+          }
+
+          return this._onDropSingleItem(item.toObject(), event, options);
+        },
       });
 
       const created = await dnd5e.documents.Item5e.createDocuments(toCreate, {
@@ -274,7 +282,8 @@ export function getTidy5eActorSheetBaseMixin(BaseApplication: any) {
      */
     async _onDropSingleItem(
       itemData: any,
-      event: DragEvent
+      event: DragEvent,
+      options: { compendiumUuid?: string } = {}
     ): Promise<object | boolean> {
       const isSupportedItemType =
         this._supportedItemTypes.size === 0 ||
@@ -311,15 +320,9 @@ export function getTidy5eActorSheetBaseMixin(BaseApplication: any) {
           this.actor.system.isVehicle ||
           this.actor.system.isGroup)
       ) {
-        const options: Record<string, unknown> = {};
-
-        if (settings.value.includeFlagsInSpellScrollCreation) {
-          options.flags = itemData.flags;
-        }
-
-        const scroll = await dnd5e.documents.Item5e.createScrollFromSpell(
+        const scroll = await SpellScroll.create(
           itemData,
-          options
+          options.compendiumUuid
         );
 
         return scroll?.toObject?.() ?? false;

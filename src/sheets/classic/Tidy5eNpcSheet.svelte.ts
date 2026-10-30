@@ -1,3 +1,4 @@
+import { SpellScroll } from 'src/features/spell-scroll/SpellScroll';
 import { FoundryAdapter } from 'src/foundry/foundry-adapter';
 import type {
   NpcSheetContext,
@@ -1141,27 +1142,19 @@ export class Tidy5eNpcSheet
   async _onDropSingleItem(
     itemData: any,
     event: DragEvent & { target: HTMLElement; currentTarget: HTMLElement },
+    options: { compendiumUuid?: string } = {},
   ) {
     // Create a Consumable spell scroll on the Inventory tab
     if (
       itemData.type === CONSTANTS.ITEM_TYPE_SPELL &&
       this.currentTabId === CONSTANTS.TAB_ACTOR_INVENTORY
     ) {
-      const options: Record<string, unknown> = {};
+      const scroll = await SpellScroll.create(itemData, options.compendiumUuid);
 
-      if (settings.value.includeFlagsInSpellScrollCreation) {
-        options.flags = itemData.flags;
-      }
-
-      const scroll = await dnd5e.documents.Item5e.createScrollFromSpell(
-        itemData,
-        options,
-      );
-
-      return scroll.toObject();
+      return scroll?.toObject?.() ?? false;
     }
 
-    return await super._onDropSingleItem(itemData, event);
+    return await super._onDropSingleItem(itemData, event, options);
   }
 
   _disableFields(...args: any[]) {
