@@ -29,6 +29,11 @@ export class CharacterSheetSections {
     feats: any[],
     options: Partial<CharacterFeatureSection>,
   ): Record<string, CharacterFeatureSection> {
+    // dnd5e 6.1 renown items: own section instead of the passive features
+    const renown = feats.filter(
+      (f) => f.type === CONSTANTS.ITEM_TYPE_RENOWN,
+    );
+    feats = feats.filter((f) => f.type !== CONSTANTS.ITEM_TYPE_RENOWN);
     const customFeats = feats.filter((f) => TidyFlags.section.get(f));
     feats = feats.filter((f) => !TidyFlags.section.get(f));
 
@@ -112,6 +117,22 @@ export class CharacterSheetSections {
         ...options,
       },
     };
+
+    if (renown.length) {
+      features.renown = {
+        type: CONSTANTS.SECTION_TYPE_FEATURE,
+        label: 'TYPES.Item.renownPl',
+        items: renown,
+        hasActions: false,
+        dataset: { type: CONSTANTS.ITEM_TYPE_RENOWN },
+        canCreate: true,
+        key: CONSTANTS.CHARACTER_FEAT_SECTION_RENOWN,
+        show: true,
+        sectionActions: [], // for the UI Overhaul
+        columns: FeatureColumnRuntime.EMPTY_COLUMN_SPECS,
+        ...options,
+      };
+    }
 
     customFeats.forEach((f) =>
       CharacterSheetSections.applyCharacterFeatureToSection(

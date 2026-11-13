@@ -2,7 +2,7 @@
   "id": "tidy5e-sheet-classic",
   "title": "Tidy 5e Sheets Classic",
   "description": "The Classic sheets from Tidy 5e Sheets, restored for Foundry v14 and D&D 5e 6.0. Runs side by side with the official Tidy 5e Sheets module. Based on Tidy 5e Sheets by kgar.",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "authors": [
     {
       "name": "Origamidnd",
@@ -126,8 +126,8 @@
         "id": "dnd5e",
         "compatibility": {
           "minimum": "6.0.0",
-          "verified": "6.0.6",
-          "maximum": "6.0.x"
+          "verified": "6.1.0",
+          "maximum": "6.1.x"
         }
       }
     ],
@@ -140,7 +140,7 @@
   },
   "url": "https://github.com/Origamidnd/foundry-vtt-tidy-5e-sheet-classic",
   "manifest": "https://github.com/Origamidnd/foundry-vtt-tidy-5e-sheet-classic/releases/latest/download/module.json",
-  "download": "https://github.com/Origamidnd/foundry-vtt-tidy-5e-sheet-classic/releases/download/v1.2.0/module.zip",
+  "download": "https://github.com/Origamidnd/foundry-vtt-tidy-5e-sheet-classic/releases/download/v1.3.0/module.zip",
   "bugs": "https://github.com/Origamidnd/foundry-vtt-tidy-5e-sheet-classic/issues",
   "changelog": "https://github.com/Origamidnd/foundry-vtt-tidy-5e-sheet-classic/releases"
 }
