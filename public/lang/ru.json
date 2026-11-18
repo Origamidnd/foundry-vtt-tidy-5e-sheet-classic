@@ -919,5 +919,28 @@
     "PlaceholderNameField.PlaceholderText": "Шаблонное название",
     "PlaceholderNotesField.PlaceholderText": "Заметки"
   },
-  "TIDY5E.Actor.Characteristics": "Характеристики"
+  "TIDY5E.Actor.Characteristics": "Характеристики",
+  "TIDY5E.SHEET": {
+    "Antimagic": {
+      "label": "Магия подавлена",
+      "warning": "Что-то подавляет всю магию."
+    }
+  },
+  "TIDY5E.COMMON": {
+    "Action": {
+      "CopyToClipboard": "Копировать в буфер обмена",
+      "CopyWithoutFormatting": "Копировать без форматирования"
+    },
+    "CopiedData": "Скопировано: {prop}",
+    "CopiedWithoutFormatting": "Текст скопирован без форматирования"
+  },
+  "TIDY5E.SETTINGS": {
+    "Option": {
+      "Tooltip": {
+        "Favorite": {
+          "name": "Показывать системные подсказки в «Избранном»"
+        }
+      }
+    }
+  }
 }
