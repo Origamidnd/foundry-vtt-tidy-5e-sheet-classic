@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { Container } from 'src/features/containers/Container';
   import { CONSTANTS } from 'src/constants';
   import { FoundryAdapter } from 'src/foundry/foundry-adapter';
   import { getContext } from 'svelte';
@@ -26,6 +27,13 @@
   import { UserSheetPreferencesService } from 'src/features/user-preferences/SheetPreferencesService';
 
   let context = $derived(getContainerSheetClassicContext());
+
+  let contentsVisibility = $derived(
+    // Classic sheets have no lock on containers: GMs always see contents, marked as hidden from players.
+    Container.getContentsVisibility(context.item, {
+      unlocked: false,
+    }),
+  );
 
   let tabId = getContext<string>(CONSTANTS.SVELTE_CONTEXT.TAB_ID);
 
@@ -152,15 +160,28 @@
     class="tidy-container-contents scroll-container flex-column small-gap"
     data-tidy-sheet-part={CONSTANTS.SHEET_PARTS.ITEMS_CONTAINER}
   >
-    <ContainerContentsSections
-      contents={context.containerContents.contents}
-      container={context.item}
-      editable={context.editable}
-      itemContext={context.containerContents.itemContext}
-      {inlineToggleService}
-      lockItemQuantity={context.lockItemQuantity}
-      sheetDocument={context.item}
-    />
+    {#if contentsVisibility === 'hidden'}
+      <div class="tidy-contents-concealed">
+        <i class="fa-solid fa-eye-slash"></i>
+        {FoundryAdapter.localize('DND5E.Unidentified.Notice')}
+      </div>
+    {:else}
+      {#if contentsVisibility === 'gmSecret'}
+        <div class="tidy-contents-concealed gm-only">
+          <i class="fa-solid fa-user-secret"></i>
+          {FoundryAdapter.localize('DND5E.Unidentified.Notice')}
+        </div>
+      {/if}
+      <ContainerContentsSections
+        contents={context.containerContents.contents}
+        container={context.item}
+        editable={context.editable}
+        itemContext={context.containerContents.itemContext}
+        {inlineToggleService}
+        lockItemQuantity={context.lockItemQuantity}
+        sheetDocument={context.item}
+      />
+    {/if}
   </div>
   <footer class="container-contents-footer">
     <CapacityBar container={context.item} capacity={context.capacity} />
@@ -168,6 +189,23 @@
 </div>
 
 <style lang="less">
+  .tidy-contents-concealed {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.375rem 0.5rem;
+    border-radius: 0.3125rem;
+    font-style: italic;
+    opacity: 0.85;
+    border: 1px dashed var(--t5e-light-color, #9996);
+
+    &.gm-only {
+      font-style: normal;
+      font-size: 0.75rem;
+      border-style: solid;
+    }
+  }
+
   .container-contents-wrapper {
     height: 100%;
     padding-left: 1rem;

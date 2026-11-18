@@ -9,7 +9,7 @@
 
 {#if context.saves.concentration}
   {const save = $derived(context.saves.concentration)}
-  <span class="special-save">
+  <span class="special-save" data-tidy-config="concentration">
     <button
       type="button"
       class="inline-transparent-button flex-row extra-small-gap align-items-center highlight-on-hover"

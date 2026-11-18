@@ -841,6 +841,8 @@ export type ActorSheetContextV1 = {
   actor: Actor5e;
   actorPortraitCommands: RegisteredPortraitMenuCommand[];
   allowEffectsManagement: boolean;
+  /** dnd5e 6.1: the actor has the antimagic status, magic is suppressed. */
+  antimagic: boolean;
   appId: string;
   biographyHTML: string;
   config: typeof CONFIG.DND5E;
@@ -978,6 +980,17 @@ export type EffectSummaryData = {
   description: {
     value: string;
   };
+  /** Readable change rows, from the system's `ActiveEffect5e#getSheetChangeContext`. */
+  changes?: EffectChangeSummary[];
+};
+
+export type EffectChangeSummary = {
+  /** System key, e.g. `system.attributes.ac.bonus`. */
+  key: string;
+  /** Readable label, e.g. "Armor Class Bonus". */
+  name: string;
+  type: string;
+  value: string;
 };
 
 export type MaxPreparedSpellFormula = {

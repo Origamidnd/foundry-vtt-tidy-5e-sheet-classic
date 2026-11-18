@@ -10,7 +10,7 @@
   const localize = FoundryAdapter.localize;
 </script>
 
-<div class="portrait-hp" title={localize('DND5E.HitPoints')}>
+<div class="portrait-hp" data-tidy-config="hp" title={localize('DND5E.HitPoints')}>
   <ResourceWithBar
     document={context.actor}
     value={context.system.attributes.hp.value}

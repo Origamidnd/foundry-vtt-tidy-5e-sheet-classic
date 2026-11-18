@@ -1,4 +1,5 @@
 <script lang="ts">
+  import AntimagicNotice from 'src/sheets/classic/actor/AntimagicNotice.svelte';
   import SpellbookFooter from 'src/components/spellbook/SpellbookFooter.svelte';
   import SpellbookGrid from 'src/components/spellbook/SpellbookGrid.svelte';
   import SpellbookList from 'src/components/spellbook/SpellbookList.svelte';
@@ -124,7 +125,11 @@
   {/each}
 </UtilityToolbar>
 
-<div class="scroll-container flex-column small-gap">
+{#if context.antimagic}
+  <AntimagicNotice />
+{/if}
+<div class="scroll-container flex-column small-gap"
+  class:tidy-antimagic-dim={context.antimagic}>
   {#if noSpellLevels}
     <NoSpells editable={context.unlocked} />
   {:else}

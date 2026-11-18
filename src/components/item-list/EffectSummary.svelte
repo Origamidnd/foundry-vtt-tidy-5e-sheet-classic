@@ -26,7 +26,7 @@
 >
   {@html summaryData.description.value}
   <HorizontalLineSeparator />
-  {#if activeEffect.changes.length}
+  {#if (summaryData.changes ?? activeEffect.changes).length}
     <table class="effect-summary-changes-table">
       <colgroup>
         <col width="50%" />
@@ -36,18 +36,18 @@
       <thead>
         <tr>
           <th>
-            {localize('EFFECT.ChangeKey')}
+            {localize('EFFECT.FIELDS.changes.element.key.label')}
           </th>
           <th>
-            {localize('EFFECT.ChangeMode')}
+            {localize('EFFECT.FIELDS.changes.element.type.label')}
           </th>
           <th>
-            {localize('EFFECT.ChangeValue')}
+            {localize('EFFECT.FIELDS.changes.element.value.label')}
           </th>
         </tr>
       </thead>
       <tbody>
-        {#each activeEffect.changes as change}
+        {#each summaryData.changes ?? activeEffect.changes as change}
           {const modeLabel = $derived(ActiveEffectsHelper.findMode(change))}
 
           <tr>
@@ -56,7 +56,12 @@
               class="truncate"
               style="word-wrap: break-all"
             >
-              {change.key}
+              <span class="effect-label flexcol">
+                {#if change.name && change.name !== change.key}
+                  <span class="effect-change-name">{change.name}</span>
+                {/if}
+                <span class="effect-change-key">{change.key}</span>
+              </span>
             </td>
             <td>
               {modeLabel}
@@ -82,6 +87,15 @@
 </div>
 
 <style lang="less">
+  .effect-change-name {
+    font-weight: 700;
+  }
+
+  .effect-change-key {
+    font-size: 0.75rem;
+    opacity: 0.7;
+  }
+
   .effect-summary-changes-table {
     table-layout: fixed;
 

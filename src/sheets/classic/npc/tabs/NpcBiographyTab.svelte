@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { CONSTANTS } from 'src/constants';
   import { FoundryAdapter } from 'src/foundry/foundry-adapter';
   import ContentEditableFormField from 'src/components/inputs/ContentEditableFormField.svelte';
   import { settings } from 'src/settings/settings.svelte';
@@ -261,11 +262,14 @@
   enrichedHTML: string,
   target: string,
 )}
-  <article>
+  <article
+    data-prop={target}
+    data-context-menu={CONSTANTS.CONTEXT_MENU_TYPE_DESCRIPTIONS}
+  >
     <div class="section-titles biopage flex-row justify-content-space-between">
       <span>{localize(label)}</span>
       <a
-        class="icon-button"
+        class="icon-button tidy-desc-edit"
         onclick={(ev) => context.editable && edit(value, enrichedHTML, target)}
       >
         <i class="fa-solid fa-feather"></i>

@@ -39,6 +39,7 @@
   <div
     class="trait-form-group {traitCssClass ?? ''}"
     data-tidy-sheet-part={CONSTANTS.SHEET_PARTS.ACTOR_TRAIT}
+    data-tidy-config={context.editable && useConfigureButton ? 'click' : undefined}
   >
     <span class="trait-icon" aria-label={title} {title}>
       {#if iconCssClass !== undefined}
@@ -55,10 +56,11 @@
       {/if}
       {@render children?.()}
     </div>
-    {#if context.unlocked && useConfigureButton}
+    {#if context.editable && useConfigureButton}
       <button
         type="button"
-        class="trait-editor inline-icon-button flex-row align-items-flex-start justify-content-center"
+        style:display={context.unlocked ? null : 'none'}
+        class="tidy-config-target trait-editor inline-icon-button flex-row align-items-flex-start justify-content-center"
         title={configureButtonTitle}
         data-action={configureButtonAction}
         onclick={(event) => {

@@ -25,6 +25,7 @@
     <li
       class="tool"
       data-tidy-sheet-part={CONSTANTS.SHEET_PARTS.TOOL_CONTAINER}
+      data-trait="tool"
       data-key={key}
     >
       {#if context.editable && !context.lockSensitiveFields}

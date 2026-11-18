@@ -41,9 +41,7 @@
   "TIDY5E.ShowItemImage": "Right Click: Show Item Art",
   "TIDY5E.ShowItemArt": "Show Image",
   "TIDY5E.Tidy5eSettings": "Tidy 5e Sheets Settings",
-
   "TIDY5E.AbilityRoll": "Roll {ability} Check",
-
   "TIDY5E.AddSpecific": "Add {name}",
   "TIDY5E.AddCustom": "Add Custom {name}",
   "TIDY5E.CompendiumBrowser": "Add {name} from Compendium",
@@ -52,46 +50,34 @@
   "TIDY5E.DecreaseSpecific": "Decrease {name}",
   "TIDY5E.Increase": "Increase",
   "TIDY5E.Decrease": "Decrease",
-
   "TIDY5E.SheetPin": {
     "Label": "Sheet Pin",
     "LabelPl": "Sheet Pins"
   },
-
   "TIDY5E.Show": "Show",
   "TIDY5E.Hide": "Hide",
-
   "TIDY5E.SectionOrganization": "Section Organization",
   "TIDY5E.AutomaticallyIncludeUsableItems": "Automatically include usable items",
-
   "TIDY5E.LegendaryLairToolbar": "Legendary/Lair Toolbar",
   "TIDY5E.SpellbookSections": "Spellbook Sections",
-
   "TIDY5E.ExhaustionLevelTooltip": "Exhaustion Level {level}",
-
   "TIDY5E.UserDefaultPrefix": "User Default: {value}",
   "TIDY5E.GenericDefaultPrefix": "Default: {value}",
-
   "TIDY5E.AbbrInitiative": "Ini",
   "TIDY5E.AbbrProficiency": "Prof",
-
   "TIDY5E.NoSpecialSenses": "No Special Senses",
-
   "TIDY5E.Group.NamePlaceholder": "Group Name",
   "TIDY5E.Group.ShowMemberTabInfoPanel": "Show Info Panel",
   "TIDY5E.Group.HideMemberTabInfoPanel": "Hide Info Panel",
   "TIDY5E.Group.EmptyMembersTabHint": "This group is empty. Drop an actor from the sidebar to add a member.",
   "TIDY5E.Group.PrimaryParty.Label": "Primary Party",
-
   "TIDY5E.RestHint": "Rest",
   "TIDY5E.ShortRest": "Short Rest",
   "TIDY5E.LongRest": "Long Rest",
   "TIDY5E.HitDiceRollAverage": "Right Click: Apply Average",
-
   "TIDY5E.JournalTabName": "Journal",
   "TIDY5E.StatblockTabName": "Statblock",
   "TIDY5E.CombatTabName": "Combat",
-
   "TIDY5E.Actions": {
     "TabName": "Actions",
     "OverriddenSetOverrideFalse": "Remove from Actions List (Shift+Click to clear override)",
@@ -102,11 +88,8 @@
   },
   "TIDY5E.LegendaryAbbr": "LA",
   "TIDY5E.LairAbbr": "Lair",
-
   "TIDY5E.HitDC": "Hit / DC",
-
   "TIDY5E.RestoreOnRest": "Restore on Rest",
-
   "TIDY5E.JournalPersonsOfInterest": "Persons of Interest",
   "TIDY5E.JournalLocationsOfInterest": "Locations of Interest",
   "TIDY5E.JournalQuests": "Quests",
@@ -114,21 +97,17 @@
   "TIDY5E.JournalEntries": "Journal Entries",
   "TIDY5E.JournalEntry.NewTitle": "Journal Entry {number}",
   "TIDY5E.TogglePersonalityInfo": "Toggle Personality Info",
-
   "TIDY5E.SheetEdit.Enable.Hint": "Enable Edit - {description}",
   "TIDY5E.SheetEdit.Disable.Hint": "Disable Edit - {description}",
   "TIDY5E.SheetEdit.Description": "Toggle visibility of add/delete buttons and empty sections",
   "TIDY5E.SheetMode.Edit": "Switch to Play Mode",
   "TIDY5E.SheetMode.Play": "Switch to Edit Mode",
-
   "TIDY5E.SheetLock.Unlock.Hint": "Unlock - {description}",
   "TIDY5E.SheetLock.Lock.Hint": "Lock - {description}",
   "TIDY5E.SheetLock.Description": "Toggle lock for sensitive fields that should not change often",
   "TIDY5E.SheetLock.Empty.Hint": "<h3>Getting Started</h3><p>Start by adding a class and your first items in the <i class='fa-solid fa-wreath-laurel'></i> <strong>Character</strong> tab. Then, use the item menu or right-click and choose <strong>Add to Sheet tab</strong> to add them here.</p><h3>Customize your Sheet</h3><p>Choose from Stylistic or Basic sheet themes, update your sheet accent color, or header image by opening the sheet's <i class='fa-solid fa-ellipsis-vertical'></i> <strong>Overflow</strong> menu using the <a class='tidy-link-theme' data-action='themeSettings'><i class='fa-solid fa-swatchbook'></i> <strong>Tidy Theme Settings</strong></a> option.</p><h3>Sidebar</h3><p>Save anything to the <i class='fa-solid fa-sidebar'></i> <strong>Sidebar</strong> to use later. Use the <i class='fa-solid fa-ellipsis-vertical'></i> <strong>Overflow</strong> menu or right-click anything then <i class='fa-solid fa-star'></i> <strong>Add Favorite</strong> to add to the sidebar.</p><h3>Settings</h3><p>Update settings for each tab and customize sections using the <i class='fa-solid fa-gear'></i> <strong>Configuration</strong> button in each tab.</p>",
-
   "TIDY5E.Inventory.Weight.Tooltip": "Weight: {weight} {weightUnit}",
   "TIDY5E.Inventory.Weight.Text": "{weight} {weightUnit}",
-
   "TIDY5E.ContextMenuActionEquip": "Equip",
   "TIDY5E.ContextMenuActionUnequip": "Unequip",
   "TIDY5E.ContextMenuActionAttune": "Attune",
@@ -153,47 +132,33 @@
   "TIDY5E.ContextMenuActionRemoveFromSheetTab": "Remove from Sheet Tab",
   "TIDY5E.ContextMenuActionUnassign": "Unassign",
   "TIDY5E.ContextMenuActionAssignToEntity": "Assign to {entityName}",
-
   "TIDY5E.InspirationSource.ItemIsSourceTooltip": "Inspiration Source",
-
   "TIDY5E.EmptyContainer": "This container is empty.",
   "TIDY5E.EmptySection": "This section is empty. Unlock the sheet to edit.",
   "TIDY5E.GMOnlyEdit": "Only your GM can edit this section.",
-
   "TIDY5E.AttunementWarning": "Attunement: Unable to attune to more than {number} items.",
   "TIDY5E.AttunementItems": "Attuned Items",
   "TIDY5E.AttunementMax": "Attunement Maximum",
-
   "TIDY5E.GridLayout": "Grid Layout",
   "TIDY5E.ListLayout": "List Layout",
   "TIDY5E.LayoutNotSupported": "Layout mode not supported",
-
   "TIDY5E.Encumbrance": "Encumbrance",
-
   "TIDY5E.AddFavorite": "Add Favorite",
   "TIDY5E.Favorite": "Favorite",
   "TIDY5E.RemoveFavorite": "Remove Favorite",
   "TIDY5E.EmptyFavorites": "Right-click and Favorite, or drag anything from your sheet here to for quick access.",
-
   "TIDY5E.ShowNotProficientSkills": "Show Not Proficient",
   "TIDY5E.HideNotProficientSkills": "Hide Not Proficient",
-
   "TIDY5E.Abilities": "Abilities",
   "TIDY5E.Ability.EditScore.label": "Edit Score",
-
   "TIDY5E.EmptyTools": "No tool proficiencies.",
-
   "TIDY5E.Environment": "Environment",
   "TIDY5E.EnvironmentTooltip": "Environment: {environment}",
-
   "TIDY5E.Search": "Search",
   "TIDY5E.SearchClear": "Clear Search",
   "TIDY5E.SearchHint": "Start typing to show search results",
-
   "TIDY5E.InfoCardInspectHint": "{inspectKey} Inspect",
-
   "TIDY5E.ItemCardsMouseHint": "middle mouse to view/edit item",
-
   "TIDY5E.AbbrMod": "Mod",
   "TIDY5E.AbbrSavingThrow": "Save",
   "TIDY5E.AttackMod": "Attack Mod",
@@ -207,13 +172,10 @@
   "TIDY5E.MeleeSpellAttackMod": "Melee Spell Attack Mod",
   "TIDY5E.RangedSpellAttackMod": "Ranged Spell Attack Mod",
   "TIDY5E.PreparedSpells": "Prepared spells",
-
   "TIDY5E.TokenLinked": "Token linked to actor",
   "TIDY5E.TokenUnlinked": "Token not linked to actor",
-
   "TIDY5E.SpellSourceIdentifierSelectText": "Class Identifier: {identifier}",
   "TIDY5E.SpellSourceIdentifierLabelHint": "The actor who has this spell does not have the source class that is specified here.",
-
   "TIDY5E.Class.Artificer": "Artificer",
   "TIDY5E.Class.Barbarian": "Barbarian",
   "TIDY5E.Class.Bard": "Bard",
@@ -228,21 +190,17 @@
   "TIDY5E.Class.Warlock": "Warlock",
   "TIDY5E.Class.Wizard": "Wizard",
   "TIDY5E.Class.Custom": "Custom Class",
-
   "TIDY5E.OriginSummaryConfig": "Origin Summary Configuration: {actorName}",
-
   "TIDY5E.MaxPreparedSpellsConfig": {
     "Title": "Max Prepared Spells Configuration: {documentName}",
     "ExamplesHeader": "Sample Formulas",
     "ButtonTooltip": "Configure Max Prepared Spells",
     "MoreFormulas": "More formulas"
   },
-
   "TIDY5E.HeaderControlConfiguration": {
     "LocationMenu": "Menu",
     "LocationHeader": "Header"
   },
-
   "TIDY5E.TabConfiguration": {
     "Title": "Configure {documentName} Sheet Tabs",
     "buttonLabel": "Configure Tabs",
@@ -262,9 +220,7 @@
     "headers.userVisibility": "User Visibility",
     "headers.showTab": "Show Tab"
   },
-
   "TIDY5E.ButtonConfirm.Text": "Confirm",
-
   "TIDY5E.Listbox": {
     "MoveUp": "Move Up (Alt + Up arrow key)",
     "MoveDown": "Move down (Alt + Down arrow key)",
@@ -281,7 +237,6 @@
     "name": "Tidy 5e Hide Classic Sheets",
     "hint": "Hide Tidy Classic sheets from the world."
   },
-
   "TIDY5E.WorldSettings.TabCharacter": {
     "tabLabel": "Character"
   },
@@ -392,14 +347,12 @@
     },
     "NoTabsHint": "No tabs are currently visible. Adjust Tab Configuration to enable tabs."
   },
-
   "TIDY5E.TabSettings": {
     "SidebarSettings": {
       "name": "Sidebar Expanded",
       "label": "Show Sidebar"
     }
   },
-
   "TIDY5E.SettingsMenu": {
     "TidySettings": {
       "name": "Tidy Sheet Settings",
@@ -1178,5 +1131,28 @@
   "TIDY5E.ActiveEffectOverrideWarning": "This value is being modified by an Active Effect and cannot be edited.",
   "TIDY5E.DescriptionView": "View {description}",
   "TIDY5E.ArmorClassMotionless": "Motionless",
-  "TIDY5E.CopyToClipboard": "Copy to Clipboard"
+  "TIDY5E.CopyToClipboard": "Copy to Clipboard",
+  "TIDY5E.SHEET": {
+    "Antimagic": {
+      "label": "Magic Suppressed",
+      "warning": "Something is blocking all magic."
+    }
+  },
+  "TIDY5E.COMMON": {
+    "Action": {
+      "CopyToClipboard": "Copy to Clipboard",
+      "CopyWithoutFormatting": "Copy Without Formatting"
+    },
+    "CopiedData": "Copied data from {prop}",
+    "CopiedWithoutFormatting": "Copied text without formatting"
+  },
+  "TIDY5E.SETTINGS": {
+    "Option": {
+      "Tooltip": {
+        "Favorite": {
+          "name": "Show system Favorite tooltips"
+        }
+      }
+    }
+  }
 }

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { CONSTANTS } from 'src/constants';
   import Accordion from 'src/components/accordion/Accordion.svelte';
   import AccordionItem from 'src/components/accordion/AccordionItem.svelte';
   import { settings } from 'src/settings/settings.svelte';
@@ -71,7 +72,11 @@
       {#each accordionItemOpenStates, i}
         {const itemDescription = $derived(context.itemDescriptions[i])}
         {#key itemDescription.content}
-          <div use:manageSecrets>
+          <div
+            use:manageSecrets
+            data-prop={itemDescription.field}
+            data-context-menu={CONSTANTS.CONTEXT_MENU_TYPE_DESCRIPTIONS}
+          >
             <AccordionItem
               bind:open={accordionItemOpenStates[i]}
               class="editor"
@@ -83,7 +88,7 @@
                   {#if context.editable}
                     <button
                       type="button"
-                      class="inline-icon-button edit-item-description"
+                      class="inline-icon-button edit-item-description tidy-desc-edit"
                       onclick={(event) => {
                         event.stopPropagation();
                         onEdit?.({

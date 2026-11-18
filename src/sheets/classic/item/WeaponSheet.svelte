@@ -1,10 +1,9 @@
 <script lang="ts">
+  import ItemRarityPicker from './parts/ItemRarityPicker.svelte';
   import Tabs from 'src/components/tabs/Tabs.svelte';
   import TabContents from 'src/components/tabs/TabContents.svelte';
   import { FoundryAdapter } from 'src/foundry/foundry-adapter';
   import ItemProfilePicture from './parts/ItemProfilePicture.svelte';
-  import Select from 'src/components/inputs/Select.svelte';
-  import SelectOptions from 'src/components/inputs/SelectOptions.svelte';
   import Source from '../shared/Source.svelte';
   import { CONSTANTS } from 'src/constants';
   import ItemIdentifiableName from './parts/ItemIdentifiableName.svelte';
@@ -44,20 +43,12 @@
         {#if context.concealDetails}
           <span>{localize('DND5E.Unidentified.Title')}</span>
         {:else}
-          <Select
-            id="{appId}-rarity"
+          <ItemRarityPicker
             document={context.item}
-            field="system.rarity"
-            class="item-rarity"
-            value={context.system.rarity}
-            disabled={!context.editable}
-            blankValue=""
-          >
-            <SelectOptions
-              data={context.config.itemRarity}
-              blank={localize('DND5E.Rarity')}
-            />
-          </Select>
+            rarities={[...(context.system.rarities ?? [])]}
+            {appId}
+            editable={context.editable}
+          />
         {/if}
       </li>
       <li class="flex-row">

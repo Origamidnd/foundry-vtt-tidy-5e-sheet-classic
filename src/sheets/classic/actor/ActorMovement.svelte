@@ -16,7 +16,10 @@
   const localize = FoundryAdapter.localize;
 </script>
 
-<section class="actor-movement flex-row small-gap {rest.class ?? ''}">
+<section
+  class="actor-movement flex-row small-gap {rest.class ?? ''}"
+  data-tidy-config="movement"
+>
   <strong>{localize(movementLabelKey)}</strong>
   {#if context.movement.primary}
     <span title={context.movement.primary}>{context.movement.primary}</span>

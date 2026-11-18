@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { Container } from 'src/features/containers/Container';
   import ExpandableContainer from 'src/components/expandable/ExpandableContainer.svelte';
   import CapacityBar from './CapacityBar.svelte';
   import ContainerContentsSections from './ContainerContentsSections.svelte';
@@ -31,6 +32,11 @@
 
   let toggleServiceMap = $derived(inlineToggleService.map);
 
+  let contentsVisibility = $derived(
+    // Classic sheets have no lock on containers: GMs always see contents, marked as hidden from players.
+    Container.getContentsVisibility(container, { unlocked: false }),
+  );
+
   const searchResults = getSearchResultsContext();
 
   let tabId = getContext<string>(CONSTANTS.SVELTE_CONTEXT.TAB_ID);
@@ -55,17 +61,34 @@
     ondrop={onDrop}
   >
     <CapacityBar {container} capacity={containerContents.capacity} />
-    <ContainerContentsSections
-      contents={containerContents.contents}
-      {container}
-      {editable}
-      itemContext={containerContents.itemContext}
-      {lockItemQuantity}
-      {inlineToggleService}
-      {sheetDocument}
-      {unlocked}
-    />
-    {#if !containerContents.contents.some((c) => c.items.length > 0)}
+    {#if contentsVisibility === 'hidden'}
+      <div class="empty-container">
+        <span class="empty-container-text"
+          ><i class="fa-solid fa-eye-slash"></i>
+          {FoundryAdapter.localize('DND5E.Unidentified.Notice')}</span
+        >
+      </div>
+    {:else}
+      {#if contentsVisibility === 'gmSecret'}
+        <div class="empty-container">
+          <span class="empty-container-text"
+            ><i class="fa-solid fa-user-secret"></i>
+            {FoundryAdapter.localize('DND5E.Unidentified.Notice')}</span
+          >
+        </div>
+      {/if}
+      <ContainerContentsSections
+        contents={containerContents.contents}
+        {container}
+        {editable}
+        itemContext={containerContents.itemContext}
+        {lockItemQuantity}
+        {inlineToggleService}
+        {sheetDocument}
+        {unlocked}
+      />
+    {/if}
+    {#if contentsVisibility !== 'hidden' && !containerContents.contents.some((c) => c.items.length > 0)}
       <div class="empty-container">
         <span class="empty-container-text"
           >{FoundryAdapter.localize('TIDY5E.EmptyContainer')}</span

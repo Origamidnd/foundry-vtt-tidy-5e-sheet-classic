@@ -1150,6 +1150,45 @@ export function getTidyExtensibleDocumentSheetMixin<
       const isActor =
         this.document.documentName === CONSTANTS.DOCUMENT_NAME_ACTOR;
 
+      // Middle click: open the configuration of a sheet block, even in Play mode
+      const configTarget = target.closest<HTMLElement>('[data-tidy-config]');
+      if (
+        configTarget &&
+        isActor &&
+        mode === CONSTANTS.SHEET_MODE_EDIT &&
+        this.isEditable
+      ) {
+        event.stopPropagation();
+        event.preventDefault();
+        const { tidyConfig, tidyConfigKey } = configTarget.dataset;
+        const actor = this.document;
+        switch (tidyConfig) {
+          case 'ability':
+            return FoundryAdapter.renderAbilityConfig(actor, tidyConfigKey);
+          case 'armor':
+            return FoundryAdapter.renderArmorConfig(actor);
+          case 'initiative':
+            return FoundryAdapter.renderInitiativeConfig(actor);
+          case 'concentration':
+            return FoundryAdapter.openConcentrationConfig(actor);
+          case 'movement':
+            return FoundryAdapter.renderMovementSensesConfig(actor, 'movement');
+          case 'senses':
+            return FoundryAdapter.renderMovementSensesConfig(actor, 'senses');
+          case 'hp':
+            return FoundryAdapter.renderHitPointsConfig(actor);
+          case 'hitDice':
+            return FoundryAdapter.renderHitDiceConfig(actor);
+          case 'death':
+            return FoundryAdapter.renderDeathConfig(actor);
+          case 'click':
+            configTarget
+              .querySelector<HTMLElement>('.tidy-config-target')
+              ?.click();
+            return;
+        }
+      }
+
       if (!!target.closest('[data-slots]') && isActor) {
         event.stopPropagation();
         event.preventDefault();
@@ -1162,7 +1201,7 @@ export function getTidyExtensibleDocumentSheetMixin<
         target.closest<HTMLElement>('[data-trait]')?.dataset ?? {};
       const { key } = target.closest<HTMLElement>('[data-key]')?.dataset ?? {};
 
-      if (trait && key && isActor) {
+      if (trait && key && isActor && mode === CONSTANTS.SHEET_MODE_EDIT) {
         event.stopPropagation();
         event.preventDefault();
         FoundryAdapter.renderSkillToolConfig(

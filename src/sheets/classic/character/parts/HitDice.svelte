@@ -13,6 +13,7 @@
 
 <div
   class="portrait-hd"
+  data-tidy-config="hitDice"
   class:rounded={context.useRoundedPortraitStyle}
   title="{localize('DND5E.HitDice')}: {hitDice}/{actorLevel}&#10;{localize(
     'DND5E.HitDiceConfig',

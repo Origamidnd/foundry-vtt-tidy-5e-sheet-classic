@@ -22,6 +22,7 @@
 
 <div
   class="portrait-hp"
+  data-tidy-config="hp"
   class:incapacitated
   class:widen-for-rounded-portrait={context.useRoundedPortraitStyle}
   title={localize('DND5E.HitPoints')}

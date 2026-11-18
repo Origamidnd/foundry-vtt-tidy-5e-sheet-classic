@@ -45,6 +45,8 @@
   class="ability-score-container"
   data-tidy-sheet-part={CONSTANTS.SHEET_PARTS.ABILITY_SCORE_CONTAINER}
   data-ability={id}
+  data-tidy-config="ability"
+  data-tidy-config-key={id}
 >
   <BlockTitle
     title={ability.label}

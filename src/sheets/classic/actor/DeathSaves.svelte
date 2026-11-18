@@ -38,7 +38,7 @@
   const localize = FoundryAdapter.localize;
 </script>
 
-<div class="death-saves" class:rounded={context.useRoundedPortraitStyle}>
+<div class="death-saves" data-tidy-config="death" class:rounded={context.useRoundedPortraitStyle}>
   <div class="death-save-counters" class:show-backdrop={!hasHpOverlay}>
     <i class="fas fa-check" class:hidden={hideDeathSaves}></i>
     <TextInput

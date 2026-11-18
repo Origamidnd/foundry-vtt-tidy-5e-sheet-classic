@@ -18,6 +18,7 @@ import type { CONSTANTS } from 'src/constants';
 import type { Tidy5eEncounterSheetClassic } from 'src/sheets/classic/Tidy5eEncounterSheetClassic.svelte';
 
 export type GroupSheetClassicContext = {
+  allowEffectsManagement: boolean;
   config: any; // TODO: If possible, convert the full CONFIG (no modules on) to a typescript type.
   currentHP: number;
   canObserveAll: boolean;

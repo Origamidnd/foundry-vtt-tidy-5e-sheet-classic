@@ -21,7 +21,7 @@
   const localize = FoundryAdapter.localize;
 </script>
 
-<div class="initiative-container">
+<div class="initiative-container" data-tidy-config="initiative">
   <div class="d20-icon-container">
     <D20Icon />
   </div>

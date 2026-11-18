@@ -425,6 +425,13 @@ export class Tidy5eContainerSheetClassic extends getTidyExtensibleDocumentSheetM
       return;
     }
 
+    // Unidentified contents: confirm before dropping something new inside (dnd5e 6 / Tidy 14)
+    const dropped = data.uuid ? fromUuidSync(data.uuid) : null;
+    const alreadyInside = dropped?.system?.container === this.item.id;
+    if (!alreadyInside && !(await Container.canDropContents(this.item))) {
+      return;
+    }
+
     if (data.type === 'Folder') {
       return await this._onDropFolder(event, data);
     }

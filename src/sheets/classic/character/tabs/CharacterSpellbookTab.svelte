@@ -1,4 +1,5 @@
 <script lang="ts">
+  import AntimagicNotice from 'src/sheets/classic/actor/AntimagicNotice.svelte';
   import { FoundryAdapter } from 'src/foundry/foundry-adapter';
   import type { ItemLayoutMode, SpellbookSection } from 'src/types/types';
   import SpellbookList from '../../../../components/spellbook/SpellbookList.svelte';
@@ -145,8 +146,12 @@
     />
   {/each}
 </UtilityToolbar>
+{#if context.antimagic}
+  <AntimagicNotice />
+{/if}
 <div
   class="scroll-container flex-column small-gap"
+  class:tidy-antimagic-dim={context.antimagic}
   data-tidy-sheet-part={CONSTANTS.SHEET_PARTS.ITEMS_CONTAINER}
 >
   {#if noSpellLevels}

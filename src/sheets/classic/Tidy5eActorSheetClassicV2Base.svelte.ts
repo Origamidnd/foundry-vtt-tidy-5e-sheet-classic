@@ -17,7 +17,11 @@ import {
 } from 'src/mixins/TidyDocumentSheetMixin.svelte';
 import { ActorPortraitRuntime } from 'src/runtime/ActorPortraitRuntime';
 import { ItemFilterRuntime } from 'src/runtime/item/ItemFilterRuntime.svelte';
-import { settings, systemSettings } from 'src/settings/settings.svelte';
+import {
+  settings,
+  SettingsProvider,
+  systemSettings,
+} from 'src/settings/settings.svelte';
 import type {
   ApplicationConfiguration,
   ApplicationRenderOptions,
@@ -195,6 +199,7 @@ export function getTidy5eActorSheetClassicV2Base<
         actorPortraitCommands:
           ActorPortraitRuntime.getEnabledPortraitMenuCommands(this.actor),
         allowEffectsManagement: true,
+        antimagic: !!this.actor.statuses?.has(CONSTANTS.STATUS_ANTIMAGIC),
         appId: this.appId,
         biographyHTML: await foundry.applications.ux.TextEditor.enrichHTML(
           this.actor.system.details.biography.value,
@@ -767,6 +772,21 @@ export function getTidy5eActorSheetClassicV2Base<
       options: TidyDocumentSheetRenderOptions,
     ) {
       await super._onRender(context, options);
+
+      // System reference tooltips for favorited items (ported from Tidy 14.3)
+      if (SettingsProvider.settings.referenceTooltipFavorite.get()) {
+        this.element
+          .querySelectorAll('[data-tidy-favorites] [data-item-id]')
+          .forEach((row: HTMLElement) => {
+            const item = this.actor.items.get(row.dataset.itemId);
+            const name: HTMLElement | null = row.querySelector(
+              `[data-tidy-sheet-part="${CONSTANTS.SHEET_PARTS.ITEM_NAME}"]`,
+            );
+            if (item && name && !name.dataset.referenceTooltip) {
+              name.dataset.referenceTooltip = item.uuid;
+            }
+          });
+      }
 
       // Apply attribution & reference tooltips
       this.element

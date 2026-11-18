@@ -950,6 +950,7 @@ export function createSettings() {
           default: [
             CONSTANTS.TAB_MEMBERS,
             CONSTANTS.TAB_ACTOR_INVENTORY,
+            CONSTANTS.TAB_EFFECTS,
             CONSTANTS.TAB_DESCRIPTION,
           ],
         },
@@ -2125,6 +2126,20 @@ export function createSettings() {
         get() {
           return FoundryAdapter.getTidySetting<boolean>(
             'referenceTooltipCreatureType',
+          );
+        },
+      },
+      referenceTooltipFavorite: {
+        options: {
+          name: 'TIDY5E.SETTINGS.Option.Tooltip.Favorite.name',
+          scope: 'user',
+          config: true,
+          default: true,
+          type: Boolean,
+        },
+        get() {
+          return FoundryAdapter.getTidySetting<boolean>(
+            'referenceTooltipFavorite',
           );
         },
       },

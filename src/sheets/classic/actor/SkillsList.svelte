@@ -124,6 +124,7 @@
           class="proficiency-row skill"
           class:proficient={skillRef.skill.prof.hasProficiency}
           data-tidy-sheet-part={CONSTANTS.SHEET_PARTS.SKILL_CONTAINER}
+          data-trait="skills"
           data-key={skillRef.key}
         >
           {#if context.editable && context.unlocked}

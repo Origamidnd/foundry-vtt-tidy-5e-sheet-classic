@@ -75,6 +75,28 @@
               effectDocument.description ?? '',
             ),
           },
+          changes: await Promise.all(
+            (effectDocument.changes ?? []).map(async (change: any) => {
+              try {
+                const ctx =
+                  (await effectDocument.getSheetChangeContext?.(change)) ?? {};
+                return {
+                  key: change.key,
+                  name: ctx.name ?? change.key,
+                  type: change.type,
+                  value: change.value,
+                  ...ctx,
+                };
+              } catch {
+                return {
+                  key: change.key,
+                  name: change.key,
+                  type: change.type,
+                  value: change.value,
+                };
+              }
+            }),
+          ),
         };
       } else if (effectDocument && !expanded && summaryData !== undefined) {
         // Reset chat data for non-expanded, hydrated chatData

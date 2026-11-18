@@ -263,6 +263,21 @@
           disabled={!context.editable}
         />
       </div>
+      {#if 'identifier' in context.system && context.item.identifier}
+        <div class="form-group section stretch tidy-identifier">
+          <label>{localize('DND5E.Identifier')}</label>
+          <button
+            type="button"
+            class="inline-transparent-button tidy-identifier-copy flex-row extra-small-gap align-items-center"
+            data-action="copyValue"
+            data-value={context.item.identifier}
+            data-tooltip={localize('TIDY5E.COMMON.Action.CopyToClipboard')}
+          >
+            <i class="fa-solid fa-fingerprint"></i>
+            <span class="truncate">{context.item.identifier}</span>
+          </button>
+        </div>
+      {/if}
     </div>
   </div>
 

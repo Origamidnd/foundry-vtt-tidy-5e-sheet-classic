@@ -18,6 +18,7 @@ import { configureSectionContextMenu as configureSectionContextMenu } from './ti
 import { configureVehicleMemberContextMenu } from './tidy5e-vehicle-member-context-menu';
 import { configureGroupSkillRollContextMenu } from './tidy5e-group-skill-roll-context-menu';
 import { configureSkillRollContextMenu } from './tidy5e-skill-roll-context-menu';
+import { configureDescriptionsContextMenu } from './tidy5e-descriptions-context-menu';
 
 export function initTidy5eContextMenu(
   sheet: any,
@@ -92,6 +93,9 @@ function onDocumentContextOpened(this: any, element: HTMLElement) {
       break;
     case CONSTANTS.CONTEXT_MENU_TYPE_GROUP_SKILL_ROLL:
       configureGroupSkillRollContextMenu(element, app);
+      break;
+    case CONSTANTS.CONTEXT_MENU_TYPE_DESCRIPTIONS:
+      configureDescriptionsContextMenu(element, app);
       break;
     default:
       warn(

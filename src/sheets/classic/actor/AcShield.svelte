@@ -27,6 +27,7 @@
 <AcShieldBase {cssClass}>
   <button
     type="button"
+    data-tidy-config="armor"
     onclick={() => FoundryAdapter.renderArmorConfig(context.actor)}
     {onfocus}
     class="config-button attribute-value transparent-button"
