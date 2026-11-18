@@ -71,7 +71,7 @@
 <div class="tidy-rarity-picker">
   {#if varies}
     <span
-      class="item-rarity rarity-varies"
+      class="rarity-varies"
       style:background-image={gradient}
       data-tooltip={variesTitle}
     >
@@ -128,13 +128,16 @@
   }
 
   .rarity-varies {
-    display: inline-flex;
-    align-items: center;
+    display: inline-block;
     padding: 0 0.25rem;
+    font-size: 0.8125rem;
     font-weight: 700;
-    background-clip: text;
-    -webkit-background-clip: text;
-    color: transparent;
+    line-height: var(--form-field-height, 1.625rem);
+    background-color: transparent !important;
+    background-clip: text !important;
+    -webkit-background-clip: text !important;
+    color: transparent !important;
+    -webkit-text-fill-color: transparent;
     cursor: help;
   }
 

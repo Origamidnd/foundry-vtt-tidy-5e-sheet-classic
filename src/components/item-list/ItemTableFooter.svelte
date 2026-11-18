@@ -79,7 +79,12 @@
         create={() => createForCustom(custom)}
       />
     {:else}
-      <ItemCreateButton dataset={section.dataset} {actor} {create} />
+      <ItemCreateButton
+        dataset={section.dataset}
+        {actor}
+        {create}
+        title={isItem ? 'DND5E.FeatureAdd' : 'DND5E.EFFECT.Action.CreateEffect'}
+      />
     {/if}
   {/if}
   {#if isItem && canCreate}

@@ -1152,8 +1152,10 @@ export function getTidyExtensibleDocumentSheetMixin<
 
       // Middle click: open the configuration of a sheet block, even in Play mode
       const configTarget = target.closest<HTMLElement>('[data-tidy-config]');
+      const specificTraitRow = target.closest<HTMLElement>('[data-trait][data-key]');
       if (
         configTarget &&
+        !(specificTraitRow && configTarget.contains(specificTraitRow)) &&
         isActor &&
         mode === CONSTANTS.SHEET_MODE_EDIT &&
         this.isEditable

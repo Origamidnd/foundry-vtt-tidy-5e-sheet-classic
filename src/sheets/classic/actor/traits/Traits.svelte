@@ -91,7 +91,7 @@
       traitCssClass={context.traits?.languages?.cssClass ?? ''}
       title={localize('DND5E.Languages')}
       iconCssClass="fas fa-comment"
-      configureButtonTitle={localize('DND5e.TraitConfig', {
+      configureButtonTitle={localize('DND5E.TRAIT.Action.Configure', {
         trait: localize('DND5E.Languages'),
       })}
       onConfigureClicked={() =>

@@ -8,9 +8,15 @@
     dataset: any;
     actor: Actor5e;
     create?: (() => void) | undefined;
+    title?: string;
   }
 
-  let { dataset, actor, create = defaultCreateFunction }: Props = $props();
+  let {
+    dataset,
+    actor,
+    create = defaultCreateFunction,
+    title = 'DND5E.FeatureAdd',
+  }: Props = $props();
 
   const localize = FoundryAdapter.localize;
 
@@ -23,7 +29,7 @@
   type="button"
   class="item-list-footer-button"
   onclick={create}
-  title={localize('DND5E.FeatureAdd')}
+  title={localize(title)}
   data-tidy-sheet-part={CONSTANTS.SHEET_PARTS.ITEM_CREATE_COMMAND}
   tabindex={settings.value.useAccessibleKeyboardSupport ? 0 : -1}
 >
